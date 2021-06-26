@@ -96,14 +96,15 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
     elif netG == 'resnet_6blocks':
         net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=6)
     elif netG == 'resnet_fpn':
-        # Create the model
+        # Create the regular GANILLA model
         net = resnet18(input_nc, output_nc, ngf, fpn_weights, use_dropout=use_dropout, pretrained=False)
     elif netG == 'resnet_fpn_warp':
-        # Create the model
-        net = resnet18(input_nc, output_nc, ngf, fpn_weights, use_dropout=use_dropout, pretrained=False)
+        # Create the GANILLA + feature warp model
+        net = resnet18_warp(input_nc, output_nc, ngf, fpn_weights, use_dropout=use_dropout, pretrained=False)
     elif netG == 'resnet_fpn_hough':
         # Create the model
-        net = resnet18(input_nc, output_nc, ngf, fpn_weights, use_dropout=use_dropout, pretrained=False)
+        print("Not implemented yet!")
+        # net = resnet18_hough(input_nc, output_nc, ngf, fpn_weights, use_dropout=use_dropout, pretrained=False)
     elif netG == 'unet_128':
         net = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'unet_256':
@@ -1070,12 +1071,305 @@ class ResNet(nn.Module):
         return out
 
 
+class ResNetWarp(nn.Module):
+
+    def __init__(self, input_nc, output_nc, ngf, fpn_weights, block, layers, use_dropout):
+        self.inplanes = ngf
+        super(ResNetWarp, self).__init__()
+
+        self.block_count = 2
+        self.cycle_consistency_finetune = False
+        self.warping_reverse = False
+        self.input_nc = input_nc
+        # first conv
+        self.pad1 = nn.ReflectionPad2d(input_nc)
+        self.conv1 = nn.Conv2d(input_nc, ngf, kernel_size=7, stride=1, padding=0, bias=True)
+        self.in1 = nn.InstanceNorm2d(ngf)
+        self.relu = nn.ReLU(inplace=True)
+        self.pad2 = nn.ReflectionPad2d(1)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=0)
+
+        # Output layer
+        self.pad3 = nn.ReflectionPad2d(output_nc)
+        self.conv2 = nn.Conv2d(64, output_nc, 7)
+        self.tanh = nn.Tanh()
+
+        if block == BasicBlock_orj:
+            # residuals
+            self.layer1 = self._make_layer(block, 64, layers[0])
+            self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+            self.layer3 = self._make_layer(block, 128, layers[2], stride=2)
+            self.layer4 = self._make_layer(block, 256, layers[3], stride=2)
+
+            fpn_sizes = [self.layer1[layers[0] - 1].conv2.out_channels,
+                         self.layer2[layers[1] - 1].conv2.out_channels,
+                         self.layer3[layers[2] - 1].conv2.out_channels,
+                         self.layer4[layers[3] - 1].conv2.out_channels]
+
+        elif block == BasicBlock_Ganilla:
+            # residuals
+            self.layer1 = self._make_layer_ganilla(block, 64, layers[0], use_dropout, stride=1)
+            self.layer2 = self._make_layer_ganilla(block, 128, layers[1], use_dropout, stride=2)
+            self.layer3 = self._make_layer_ganilla(block, 128, layers[2], use_dropout, stride=2)
+            self.layer4 = self._make_layer_ganilla(block, 256, layers[3], use_dropout, stride=2)
+
+            fpn_sizes = [self.layer1[layers[0] - 1].conv2.out_channels,
+                         self.layer2[layers[1] - 1].conv2.out_channels,
+                         self.layer3[layers[2] - 1].conv2.out_channels,
+                         self.layer4[layers[3] - 1].conv2.out_channels]
+
+        else:
+            print("Block Type is not Correct")
+            sys.exit()
+
+        self.fpn = PyramidFeatures(fpn_sizes[0], fpn_sizes[1], fpn_sizes[2], fpn_sizes[3], fpn_weights)
+
+        k = 3
+        warp_out = 3  # 64 # 3 when warping on image else 64
+        inner_ch = 3  # 64
+
+        self.offset_feats = self._compute_chain_of_basic_blocks(warp_out, inner_ch, 1, 1, 2,
+                                                                warp_out, self.block_count).cuda()
+
+        #### Offsets
+        self.offsets1 = self._single_conv(inner_ch, k, k, 3, warp_out).cuda()
+        # self.offsets2 = self._single_conv(inner_ch, k, k, 6, warp_out).cuda()
+        # self.offsets3 = self._single_conv(inner_ch, k, k, 12, warp_out).cuda()
+        # self.offsets4 = self._single_conv(inner_ch, k, k, 18, warp_out).cuda()
+        # self.offsets5 = self._single_conv(inner_ch, k, k, 24, warp_out).cuda()
+
+        #### Deformable Conv
+        self.deform_conv1 = self._deform_conv(warp_out, k, k, 3, warp_out).cuda()
+        # self.deform_conv2 = self._deform_conv(warp_out, k, k, 6, warp_out).cuda()
+        # self.deform_conv3 = self._deform_conv(warp_out, k, k, 12, warp_out).cuda()
+        # self.deform_conv4 = self._deform_conv(warp_out, k, k, 18, warp_out).cuda()
+        # self.deform_conv5 = self._deform_conv(warp_out, k, k, 24, warp_out).cuda()
+
+        # for m in self.modules():
+        #    if isinstance(m, nn.Conv2d):
+        #        n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+        #        m.weight.data.normal_(0, math.sqrt(2. / n))
+        #    elif isinstance(m, nn.BatchNorm2d):
+        #        m.weight.data.fill_(1)
+        #        m.bias.data.zero_()
+
+        # self.freeze_bn()
+
+    def _make_layer(self, block, planes, blocks, stride=1):
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                nn.Conv2d(self.inplanes, planes * block.expansion,
+                          kernel_size=1, stride=stride, bias=True),
+                nn.BatchNorm2d(planes * block.expansion),
+            )
+
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block.expansion
+        for i in range(1, blocks):
+            layers.append(block(self.inplanes, planes))
+
+        return nn.Sequential(*layers)
+
+    def _make_layer_ganilla(self, block, planes, blocks, use_dropout, stride=1):
+        strides = [stride] + [1] * (blocks - 1)
+        layers = []
+        for stride in strides:
+            layers.append(block(self.inplanes, planes, use_dropout, stride))
+            self.inplanes = planes * block.expansion
+        return nn.Sequential(*layers)
+
+    def freeze_bn(self):
+        '''Freeze BatchNorm layers.'''
+        for layer in self.modules():
+            if isinstance(layer, nn.BatchNorm2d):
+                layer.eval()
+
+    def _compute_chain_of_basic_blocks(self, nc, ic, kh, kw, dd, dg, b):
+        num_blocks = b
+        block = BasicBlock
+        in_ch = ic
+        out_ch = ic
+        stride = 1
+
+        ######
+        downsample = nn.Sequential(
+            nn.Conv2d(
+                nc,
+                in_ch,
+                kernel_size=1, stride=stride, bias=False
+            ),
+            nn.BatchNorm2d(
+                in_ch,
+                momentum=BN_MOMENTUM
+            ),
+        )
+
+        ##########
+        layers = []
+        layers.append(
+            block(
+                nc,
+                out_ch,
+                stride,
+                downsample
+            )
+        )
+
+        for i in range(1, num_blocks):
+            layers.append(
+                block(
+                    in_ch,
+                    out_ch
+                )
+            )
+
+        return nn.Sequential(*layers)
+
+    def _single_conv(self, nc, kh, kw, dd, dg):
+        conv = nn.Conv2d(
+            nc,
+            dg * 2 * kh * kw,
+            kernel_size=(3, 3),
+            stride=(1, 1),
+            dilation=(dd, dd),
+            padding=(1 * dd, 1 * dd),
+            bias=False)
+        return conv
+
+    def _deform_conv(self, nc, kh, kw, dd, dg):
+        conv_offset2d = DeformConv(
+            nc,
+            nc, (kh, kw),
+            stride=1,
+            padding=int(kh / 2) * dd,
+            dilation=dd,
+            deformable_groups=dg)
+        return conv_offset2d
+
+    def forward(self, inputs):
+
+        batch_size = inputs.size(0)
+        ref_x = inputs[:, 0:self.input_nc, :, :]
+        sup_x = inputs[:, self.input_nc:, :, :]
+        x = torch.cat((ref_x, sup_x), 0)
+
+        x = self.pad1(x)
+        x = self.conv1(x)
+        x = self.in1(x)
+        x = self.relu(x)
+        x = self.pad2(x)
+        x = self.maxpool(x)
+
+        x1 = self.layer1(x)
+        x2 = self.layer2(x1)
+        x3 = self.layer3(x2)
+        x4 = self.layer4(x3)
+
+        out = self.fpn([x1, x2, x3, x4])
+
+        # moved here for warping on 3 color image
+        out = self.pad3(out)
+        out = self.conv2(out)
+        out = self.tanh(out)
+
+        """
+        Warping phase
+        """
+        ref_x = out[:batch_size, :, :, :]
+        sup_x = out[batch_size:, :, :, :]
+
+        #### cycle consistency
+        if self.cycle_consistency_finetune:
+            diff_x_back = ref_x - sup_x
+            diff_x_forw = sup_x - ref_x
+        else:
+            diff_x = ref_x - sup_x
+        ###########
+
+        if self.warping_reverse:
+            diff_x = sup_x - ref_x
+            sup_x = ref_x
+
+        ### cycle consistency
+        if self.cycle_consistency_finetune:
+            off_feats_cuda = self.offset_feats(diff_x_forw.cuda())
+            sup_x_cuda = ref_x.cuda()
+        else:
+            off_feats_cuda = self.offset_feats(diff_x.cuda())
+            sup_x_cuda = sup_x.cuda()
+
+        #########
+
+        off1 = self.offsets1(off_feats_cuda)
+        warped_x1 = self.deform_conv1(sup_x_cuda, off1)
+
+        # off2 = self.offsets2(off_feats_cuda)
+        # warped_x2 = self.deform_conv2(sup_x_cuda, off2)
+        #
+        # off3 = self.offsets3(off_feats_cuda)
+        # warped_x3 = self.deform_conv3(sup_x_cuda, off3)
+        #
+        # off4 = self.offsets4(off_feats_cuda)
+        # warped_x4 = self.deform_conv4(sup_x_cuda, off4)
+        #
+        # off5 = self.offsets5(off_feats_cuda)
+        # warped_x5 = self.deform_conv5(sup_x_cuda, off5)
+
+        # x = 0.2 * (warped_x1 + warped_x2 + warped_x3 + warped_x4 + warped_x5)
+        x = warped_x1
+
+        #### backwards
+        if self.cycle_consistency_finetune:
+            off_feats_cuda = self.offset_feats(diff_x_back.cuda())
+            sup_x_cuda = x
+
+            off1 = self.offsets1(off_feats_cuda)
+            warped_x1 = self.deform_conv1(sup_x_cuda, off1)
+
+            # off2 = self.offsets2(off_feats_cuda)
+            # warped_x2 = self.deform_conv2(sup_x_cuda, off2)
+            #
+            # off3 = self.offsets3(off_feats_cuda)
+            # warped_x3 = self.deform_conv3(sup_x_cuda, off3)
+            #
+            # off4 = self.offsets4(off_feats_cuda)
+            # warped_x4 = self.deform_conv4(sup_x_cuda, off4)
+            #
+            # off5 = self.offsets5(off_feats_cuda)
+            # warped_x5 = self.deform_conv5(sup_x_cuda, off5)
+
+            # x = 0.2 * (warped_x1 + warped_x2 + warped_x3 + warped_x4 + warped_x5)
+            x = warped_x1
+
+        ###############
+
+        # # final conv to generate 3 channel color image.
+        # out = self.pad3(x)
+        # out = self.conv2(out)
+        # out = self.tanh(out)
+
+        return x  # out ## return x for 3 color image warping else out
+
+
 def resnet18(input_nc, output_nc, ngf, fpn_weights, use_dropout, pretrained=False, **kwargs):
     """Constructs a ResNet-18 model.
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
     model = ResNet(input_nc, output_nc, ngf, fpn_weights, BasicBlock_Ganilla, [2, 2, 2, 2], use_dropout,  **kwargs)
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['resnet18'], model_dir='.'), strict=False)
+    return model
+
+
+def resnet18_warp(input_nc, output_nc, ngf, fpn_weights, use_dropout, pretrained=False, **kwargs):
+    """Constructs a ResNet-18 model.
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+    """
+    model = ResNetWarp(input_nc, output_nc, ngf, fpn_weights, BasicBlock_Ganilla, [2, 2, 2, 2], use_dropout,  **kwargs)
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['resnet18'], model_dir='.'), strict=False)
     return model
