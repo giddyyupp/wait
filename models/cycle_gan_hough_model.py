@@ -17,10 +17,6 @@ class CycleGANModel(BaseModel):
             parser.add_argument('--lambda_A', type=float, default=10.0, help='weight for cycle loss (A -> B -> A)')
             parser.add_argument('--lambda_B', type=float, default=10.0, help='weight for cycle loss (B -> A -> B)')
             parser.add_argument('--lambda_identity', type=float, default=0.5, help='use identity mapping. Setting lambda_identity other than 0 has an effect of scaling the weight of the identity mapping loss. For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set lambda_identity = 0.1')
-            parser.add_argument('--lambda_fake_diff', type=float, default=1.0, help='weight for fake diff loss')
-            parser.add_argument('--lambda_real_fake_diff', type=float, default=1.0, help='weight for real fake diff loss')
-            parser.add_argument('--lambda_fake_rec_diff', type=float, default=1.0, help='weight for fake rec diff loss')
-
         return parser
 
     def initialize(self, opt):
@@ -46,10 +42,10 @@ class CycleGANModel(BaseModel):
         # load/define networks
         # The naming conversion is different from those used in the paper
         # Code (paper): G_A (G), G_B (F), D_A (D_Y), D_B (D_X)
-        self.netG_A = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, f"{opt.netG}_warp", opt.norm,
+        self.netG_A = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, f"{opt.netG}_hough", opt.norm,
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids, depth=18,
                                         fpn_weights=opt.fpn_weights)
-        self.netG_B = networks.define_G(opt.output_nc, opt.input_nc, opt.ngf, f"{opt.netG}_warp", opt.norm,
+        self.netG_B = networks.define_G(opt.output_nc, opt.input_nc, opt.ngf, f"{opt.netG}_hough", opt.norm,
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids, depth=18,
                                         fpn_weights=opt.fpn_weights)
 
@@ -91,8 +87,10 @@ class CycleGANModel(BaseModel):
     def forward(self):
 
         self.fake_B_1 = self.netG_A(torch.cat((self.real_A_1, self.real_A_2), 1))
+        self.fake_B_2 = self.netG_A(torch.cat((self.real_A_2, self.real_A_1), 1))
 
-        self.rec_A_1 = self.netG_B(torch.cat((self.fake_B_1, self.fake_B_1), 1))
+        self.rec_A_1 = self.netG_B(torch.cat((self.fake_B_1, self.fake_B_2), 1))
+        self.rec_A_2 = self.netG_B(torch.cat((self.fake_B_2, self.fake_B_1), 1))
 
         self.fake_A = self.netG_B(torch.cat((self.real_B, self.real_B), 1))
         self.rec_B = self.netG_A(torch.cat((self.fake_A, self.fake_A), 1))
@@ -114,9 +112,13 @@ class CycleGANModel(BaseModel):
         fake_B_1 = self.fake_B_pool.query(self.fake_B_1)
         self.loss_D_A_1 = self.backward_D_basic(self.netD_A, self.real_B, fake_B_1)
 
+        fake_B_2 = self.fake_B_pool.query(self.fake_B_2)
+        self.loss_D_A_2 = self.backward_D_basic(self.netD_A, self.real_B, fake_B_2)
+
     def backward_D_B(self):
         fake_A = self.fake_A_pool.query(self.fake_A)
         self.loss_D_B_1 = self.backward_D_basic(self.netD_B, self.real_A_1, fake_A)
+        self.loss_D_B_2 = self.backward_D_basic(self.netD_B, self.real_A_2, fake_A)
 
     def backward_G(self):
         lambda_idt = self.opt.lambda_identity
@@ -131,26 +133,34 @@ class CycleGANModel(BaseModel):
             # G_B should be identity if real_A is fed.
             self.idt_B_1 = self.netG_B(torch.cat((self.real_A_1, self.real_A_1), 1))
             self.loss_idt_B_1 = self.criterionIdt(self.idt_B_1, self.real_A_1) * lambda_A * lambda_idt
+
+            self.idt_B_2 = self.netG_B(torch.cat((self.real_A_2, self.real_A_2), 1))
+            self.loss_idt_B_2 = self.criterionIdt(self.idt_B_2, self.real_A_2) * lambda_A * lambda_idt
+
         else:
             self.loss_idt_A = 0
             self.loss_idt_B_1, self.loss_idt_B_2, self.loss_idt_B_3 = 0, 0, 0
 
         # GAN loss D_A(G_A(A_1))
         self.loss_G_A_1 = self.criterionGAN(self.netD_A(self.fake_B_1), True)
+        # GAN loss D_A(G_A(A_2))
+        self.loss_G_A_2 = self.criterionGAN(self.netD_A(self.fake_B_2), True)
 
         # GAN loss D_B(G_B(B))
         self.loss_G_B = self.criterionGAN(self.netD_B(self.fake_A), True)
 
         # Forward cycle loss A_1
         self.loss_cycle_A_1 = self.criterionCycle(self.rec_A_1, self.real_A_1) * lambda_A
+        # Forward cycle loss A_2
+        self.loss_cycle_A_2 = self.criterionCycle(self.rec_A_2, self.real_A_2) * lambda_A
 
         # Backward cycle loss
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
 
         # combined loss
-        self.loss_G = self.loss_G_A_1 + self.loss_G_B + \
-                      self.loss_cycle_A_1 + self.loss_cycle_B + \
-                      self.loss_idt_A + self.loss_idt_B_1
+        self.loss_G = self.loss_G_A_1 + self.loss_G_A_2 + self.loss_G_B + \
+                      self.loss_cycle_A_1 + self.loss_cycle_A_2 + self.loss_cycle_B + \
+                      self.loss_idt_A + self.loss_idt_B_1 + self.loss_idt_B_2
 
         self.loss_G.backward()
 
@@ -168,3 +178,4 @@ class CycleGANModel(BaseModel):
         self.backward_D_A()
         self.backward_D_B()
         self.optimizer_D.step()
+
