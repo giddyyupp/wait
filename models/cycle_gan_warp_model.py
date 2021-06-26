@@ -5,9 +5,9 @@ from .base_model import BaseModel
 from . import networks
 
 
-class CycleGANModel(BaseModel):
+class CycleGANWarpModel(BaseModel):
     def name(self):
-        return 'CycleGANModel'
+        return 'CycleGANWarpModel'
 
     @staticmethod
     def modify_commandline_options(parser, is_train=True):

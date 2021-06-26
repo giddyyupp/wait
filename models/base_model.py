@@ -120,7 +120,7 @@ class BaseModel():
         for name in self.model_names:
             if isinstance(name, str):
                 if self.opt.model != 'pix2pix':
-                    load_filename = '%s_net_%s_%s.pth' % (epoch, name, direction[0:1])
+                    load_filename = '%s_net_%s.pth' % (epoch, name)
                 else:
                     load_filename = '%s_net_%s.pth' % (epoch, name)
                 load_path = os.path.join(self.save_dir, load_filename)
