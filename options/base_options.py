@@ -24,12 +24,14 @@ class BaseOptions():
         parser.add_argument('--ngf', type=int, default=64, help='# of gen filters in first conv layer')
         parser.add_argument('--ndf', type=int, default=64, help='# of discrim filters in first conv layer')
         parser.add_argument('--netD', type=str, default='basic', help='selects model to use for netD')
-        parser.add_argument('--netG', type=str, default='resnet_fpn', help='selects model to use for netG [resnet_fpn | ablation_model1 | ablation_model2 | resnet_9blocks | resnet_6blocks]')
+        parser.add_argument('--netG', type=str, default='resnet_fpn',
+                            help='selects model to use for netG [resnet_fpn|resnet_9blocks|resnet_6blocks]')
         parser.add_argument('--n_layers_D', type=int, default=3, help='only used if netD==n_layers')
         parser.add_argument('--fpn_weights', type=list, default=[1.0, 1.0, 1.0, 1.0], help='weights for each fpn layer from C5 to C2')
         parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
         parser.add_argument('--dataset_mode', type=str, default='unaligned', help='chooses how datasets are loaded. [unaligned | aligned | single]')
-        parser.add_argument('--model', type=str, default='cycle_gan', help='chooses which model to use. cycle_gan, pix2pix, test')
+        parser.add_argument('--model', type=str, default='cycle_gan_warp',
+                            help='chooses which model to use. cycle_gan, cycle_gan_warp, cycle_gan_hough, pix2pix, test')
         parser.add_argument('--direction', type=str, default='AtoB', help='AtoB or BtoA')
         parser.add_argument('--epoch', type=str, default='100', help='which epoch to load? set to latest to use latest cached model')
         parser.add_argument('--num_threads', default=8, type=int, help='# threads for loading data')

@@ -5,10 +5,14 @@ import functools
 from torch.optim import lr_scheduler
 
 import torch.nn.functional as F
+from models.deform_conv.modules.deform_conv import DeformConv
 
 import math
 import torch.utils.model_zoo as model_zoo
 import sys
+
+
+BN_MOMENTUM = 0.1
 
 ###############################################################################
 # Helper Functions
@@ -84,6 +88,8 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
 
     if netG == 'resnet_9blocks':
         net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
+    elif netG == 'resnet_9blocks_warp':
+        net = ResnetGeneratorWarp(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
     elif netG == 'resnet_6blocks':
         net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=6)
     elif netG == 'resnet_fpn':
@@ -205,6 +211,258 @@ class ResnetGenerator(nn.Module):
 
     def forward(self, input):
         return self.model(input)
+
+
+# Feature Warping
+class ResnetGeneratorWarp(nn.Module):
+    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6,
+                 padding_type='reflect'):
+        assert (n_blocks >= 0)
+        super(ResnetGeneratorWarp, self).__init__()
+        self.block_count = 2
+        self.cycle_consistency_finetune = False
+        self.warping_reverse = False
+
+        self.input_nc = input_nc
+        self.output_nc = output_nc
+        self.ngf = ngf
+        if type(norm_layer) == functools.partial:
+            use_bias = norm_layer.func == nn.InstanceNorm2d
+        else:
+            use_bias = norm_layer == nn.InstanceNorm2d
+
+        model = [nn.ReflectionPad2d(3),
+                 nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0,
+                           bias=use_bias),
+                 norm_layer(ngf),
+                 nn.ReLU(True)]
+
+        n_downsampling = 2
+        for i in range(n_downsampling):
+            mult = 2 ** i
+            model += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3,
+                                stride=2, padding=1, bias=use_bias),
+                      norm_layer(ngf * mult * 2),
+                      nn.ReLU(True)]
+
+        mult = 2 ** n_downsampling
+        for i in range(n_blocks):
+            model += [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout,
+                                  use_bias=use_bias)]
+
+        for i in range(n_downsampling):
+            mult = 2 ** (n_downsampling - i)
+            model += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
+                                         kernel_size=3, stride=2,
+                                         padding=1, output_padding=1,
+                                         bias=use_bias),
+                      norm_layer(int(ngf * mult / 2)),
+                      nn.ReLU(True)]
+
+        k = 3
+        warp_out = 3  # 64
+        inner_ch = 3  # 64
+
+        self.offset_feats = self._compute_chain_of_basic_blocks(warp_out, inner_ch, 1, 1, 2,
+                                                                warp_out, self.block_count).cuda()
+
+        #### Offsets
+        self.offsets1 = self._single_conv(inner_ch, k, k, 3, warp_out).cuda()
+        # self.offsets2 = self._single_conv(inner_ch, k, k, 6, warp_out).cuda()
+        # self.offsets3 = self._single_conv(inner_ch, k, k, 12, warp_out).cuda()
+        # self.offsets4 = self._single_conv(inner_ch, k, k, 18, warp_out).cuda()
+        # self.offsets5 = self._single_conv(inner_ch, k, k, 24, warp_out).cuda()
+
+        #### Deformable Conv
+        self.deform_conv1 = self._deform_conv(warp_out, k, k, 3, warp_out).cuda()
+        # self.deform_conv2 = self._deform_conv(warp_out, k, k, 6, warp_out).cuda()
+        # self.deform_conv3 = self._deform_conv(warp_out, k, k, 12, warp_out).cuda()
+        # self.deform_conv4 = self._deform_conv(warp_out, k, k, 18, warp_out).cuda()
+        # self.deform_conv5 = self._deform_conv(warp_out, k, k, 24, warp_out).cuda()
+
+        model_final = [nn.ReflectionPad2d(3)]
+        model_final += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
+        model_final += [nn.Tanh()]
+
+        self.model = nn.Sequential(*model)
+        self.model_final = nn.Sequential(*model_final)
+
+    def _compute_chain_of_basic_blocks(self, nc, ic, kh, kw, dd, dg, b):
+        num_blocks = b
+        block = BasicBlock
+        in_ch = ic
+        out_ch = ic
+        stride = 1
+
+        ######
+        downsample = nn.Sequential(
+            nn.Conv2d(
+                nc,
+                in_ch,
+                kernel_size=1, stride=stride, bias=False
+            ),
+            nn.BatchNorm2d(
+                in_ch,
+                momentum=BN_MOMENTUM
+            ),
+        )
+
+        ##########
+        layers = []
+        layers.append(
+            block(
+                nc,
+                out_ch,
+                stride,
+                downsample
+            )
+        )
+
+        for i in range(1, num_blocks):
+            layers.append(
+                block(
+                    in_ch,
+                    out_ch
+                )
+            )
+
+        return nn.Sequential(*layers)
+
+    def _single_conv(self, nc, kh, kw, dd, dg):
+        conv = nn.Conv2d(
+            nc,
+            dg * 2 * kh * kw,
+            kernel_size=(3, 3),
+            stride=(1, 1),
+            dilation=(dd, dd),
+            padding=(1 * dd, 1 * dd),
+            bias=False)
+        return conv
+
+    def _deform_conv(self, nc, kh, kw, dd, dg):
+        conv_offset2d = DeformConv(
+            nc,
+            nc, (kh, kw),
+            stride=1,
+            padding=int(kh / 2) * dd,
+            dilation=dd,
+            deformable_groups=dg)
+        return conv_offset2d
+
+    def forward(self, inputs):
+        batch_size = inputs.size(0)
+        ref_x = inputs[:, 0:self.input_nc, :, :]
+        sup_x = inputs[:, self.input_nc:, :, :]
+        x = torch.cat((ref_x, sup_x), 0)
+
+        out = self.model(x)
+        # below is for warping on 3 channel image
+        out = self.model_final(out)
+
+        """
+            Warping phase
+        """
+        ref_x = out[:batch_size, :, :, :]
+        sup_x = out[batch_size:, :, :, :]
+
+        #### cycle consistency
+        if self.cycle_consistency_finetune:
+            diff_x_back = ref_x - sup_x
+            diff_x_forw = sup_x - ref_x
+        else:
+            diff_x = ref_x - sup_x
+        ###########
+
+        if self.warping_reverse:
+            diff_x = sup_x - ref_x
+            sup_x = ref_x
+
+        ### cycle consistency
+        if self.cycle_consistency_finetune:
+            off_feats_cuda = self.offset_feats(diff_x_forw.cuda())
+            sup_x_cuda = ref_x.cuda()
+        else:
+            off_feats_cuda = self.offset_feats(diff_x.cuda())
+            sup_x_cuda = sup_x.cuda()
+
+        #########
+
+        off1 = self.offsets1(off_feats_cuda)
+        warped_x1 = self.deform_conv1(sup_x_cuda, off1)
+
+        # off2 = self.offsets2(off_feats_cuda)
+        # warped_x2 = self.deform_conv2(sup_x_cuda, off2)
+        #
+        # off3 = self.offsets3(off_feats_cuda)
+        # warped_x3 = self.deform_conv3(sup_x_cuda, off3)
+        #
+        # off4 = self.offsets4(off_feats_cuda)
+        # warped_x4 = self.deform_conv4(sup_x_cuda, off4)
+        #
+        # off5 = self.offsets5(off_feats_cuda)
+        # warped_x5 = self.deform_conv5(sup_x_cuda, off5)
+
+        # x = 0.25 * (warped_x1 + warped_x2 + warped_x3 + warped_x4)
+        x = warped_x1
+
+        #### backwards
+        if self.cycle_consistency_finetune:
+            off_feats_cuda = self.offset_feats(diff_x_back.cuda())
+            sup_x_cuda = x
+
+            off1 = self.offsets1(off_feats_cuda)
+            warped_x1 = self.deform_conv1(sup_x_cuda, off1)
+
+            # off2 = self.offsets2(off_feats_cuda)
+            # warped_x2 = self.deform_conv2(sup_x_cuda, off2)
+            #
+            # off3 = self.offsets3(off_feats_cuda)
+            # warped_x3 = self.deform_conv3(sup_x_cuda, off3)
+            #
+            # off4 = self.offsets4(off_feats_cuda)
+            # warped_x4 = self.deform_conv4(sup_x_cuda, off4)
+            #
+            # off5 = self.offsets5(off_feats_cuda)
+            # warped_x5 = self.deform_conv5(sup_x_cuda, off5)
+
+            # x = 0.25 * (warped_x1 + warped_x2 + warped_x3 + warped_x4)
+            x = warped_x1
+
+        ###############
+
+        return x  # self.model_final(x) ## return x for 3 channel warping
+
+
+class BasicBlock(nn.Module):
+    expansion = 1
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
+        super(BasicBlock, self).__init__()
+        self.conv1 = conv3x3(inplanes, planes, stride)
+        self.bn1 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = conv3x3(planes, planes)
+        self.bn2 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
+        self.downsample = downsample
+        self.stride = stride
+
+    def forward(self, x):
+        residual = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        out = self.relu(out)
+
+        return out
 
 
 # Define a resnet block
