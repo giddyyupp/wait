@@ -1,10 +1,8 @@
 import os
 import matplotlib.pyplot as plt
 
-
 X = ['50', '80', '100', '120', '150', '180', '200']
 PLOT_PATH = 'plots'
-
 
 # Peter GANILLA
 peter_ganilla = {
@@ -42,21 +40,21 @@ peter_ganilla = {
              'mse': [7610.14, 6965.02, 6467.86, 7362.08, 7972.54, 7795.32, 7933.21],
              'fwe': [0.004074, 0.003731, 0.003804, 0.004825, 0.004878, 0.004771, 0.004901],
              'color': 'tab:purple'},
-        # 'peter_ganilla_seq_diff_v2_1':  # peter_ganilla_seq_diff_v2_1 - TODO
-        #     {'fid': [],
-        #      'mse': [],
-        #      'fwe': [],
-        #      'color': 'tab:cyan'},
+        'peter_ganilla_seq_diff_v2_1':  # peter_ganilla_seq_diff_v2_1
+            {'fid': [187.50, 481.26, 533.79, 569.69, 393.77, 265.45, 239.16],
+             'mse': [6864.58, 7560.13, 7560.13, 7560.16, 8938.50, 27014.95, 28199.91],
+             # 'fwe': [],     # TODO
+             'color': 'tab:cyan'},
         'peter_ganilla_diff_v3_2':  # peter_ganilla_diff_v3_2
             {'fid': [162.94, 155.99, 151.59, 156.75, 149.36, 146.44, 146.72],
              'mse': [7064.61, 6808.67, 7157.06, 6356.23, 7024.37, 7174.03, 7304.93],
              'fwe': [0.003952, 0.003388, 0.003890, 0.003410, 0.003825, 0.004257, 0.004305],
              'color': 'tab:pink'},
-        # 'peter_ganilla_seq_diff_v3_2':  # peter_ganilla_seq_diff_v3_2 - TODO
-        #     {'fid': [],
-        #      'mse': [],
-        #      'fwe': [],
-        #      'color': 'tab:gray'},
+        'peter_ganilla_seq_diff_v3_2':  # peter_ganilla_seq_diff_v3_2
+            {'fid': [206.22, 192.22, 187.78, 202.76, 168.62, 176.09, 196.68],
+             'mse': [7940.62, 10047.21, 9249.96, 8725.75, 6246.28, 7656.19, 9837.91],
+             # 'fwe': [],     # TODO
+             'color': 'tab:gray'},
     }
 }
 
@@ -151,7 +149,6 @@ axel_cyclegan = {
              'color': 'tab:blue'},
     }
 }
-
 
 # Plot
 y = peter_ganilla  # change data
