@@ -84,11 +84,11 @@ peter_cyclegan = {
              'mse': [7522.38, 8090.81, 8406.33, 8847.03, 9030.39, 9534.88, 9727.44],
              'fwe': [0.004507, 0.005271, 0.005734, 0.006035, 0.006208, 0.006699, 0.006886],
              'color': 'tab:green'},
-        # 'peter_cyclegan_seq_diff_v1_3':  # peter_cyclegan_seq_diff_v1_3 - TODO
-        #     {'fid': [],
-        #      'mse': [],
-        #      'fwe': [],
-        #      'color': 'tab:orange'},
+        'peter_cyclegan_seq_diff_v1_3':  # peter_cyclegan_seq_diff_v1_3
+            {'fid': [145.70, 145.50, 154.36, 156.06, 155.59, 161.58, 172.72],
+             'mse': [9289.60, 8709.59, 8728.94, 9268.71, 10018.96, 10488.65, 8238.14],
+             # 'fwe': [],  # TODO
+             'color': 'tab:orange'},
         'peter_cyclegan_diff_v2_3':  # peter_cyclegan_diff_v2_3
             {'fid': [149.03, 144.71, 151.96, 152.97, 144.83, 151.23, 150.56],
              'mse': [6888.27, 6556.43, 7403.19, 7504.73, 8050.70, 8486.29, 8685.77],
@@ -104,11 +104,11 @@ peter_cyclegan = {
              'mse': [7064.61, 6808.69, 7157.06, 6356.23, 7024.37, 7174.03, 7304.93],
              'fwe': [0.003924, 0.004396, 0.004594, 0.004492, 0.005111, 0.005695, 0.005722],
              'color': 'tab:pink'},
-        # 'peter_cyclegan_seq_diff_v3_3':  # peter_cyclegan_seq_diff_v3_3 - TODO
-        #     {'fid': [],
-        #      'mse': [],
-        #      'fwe': [],
-        #      'color': 'tab:gray'},
+        'peter_cyclegan_seq_diff_v3_3':  # peter_cyclegan_seq_diff_v3_3
+            {'fid': [168.60, 163.69, 173.73, 189.56, 189.13, 189.75, 170.77],
+             'mse': [10721.37, 9930.93, 9781.17, 10318.23, 11256.78, 11552.63, 8871.68],
+             # 'fwe': [],     # TODO
+             'color': 'tab:gray'},
     }
 }
 
