@@ -33,7 +33,7 @@ class SingleDataset(BaseDataset):
             tmp = A[0, ...] * 0.299 + A[1, ...] * 0.587 + A[2, ...] * 0.114
             A = tmp.unsqueeze(0)
 
-        return {'A': A, 'A_paths': A_path}
+        return {'A': [A, A, A], 'A_paths': [A_path, A_path]}
 
     def __len__(self):
         return len(self.A_paths)
