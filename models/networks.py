@@ -220,7 +220,7 @@ class ResnetGeneratorWarp(nn.Module):
         assert (n_blocks >= 0)
         super(ResnetGeneratorWarp, self).__init__()
         self.block_count = 2
-        self.cycle_consistency_finetune = False
+        self.cycle_consistency_finetune = True
         self.warping_reverse = False
 
         self.input_nc = input_nc
@@ -260,8 +260,8 @@ class ResnetGeneratorWarp(nn.Module):
                       nn.ReLU(True)]
 
         k = 3
-        warp_out = 3  # 64
-        inner_ch = 3  # 64
+        warp_out = 64  # feature:64, image:3
+        inner_ch = 64  # feature:64, image:3
 
         self.offset_feats = self._compute_chain_of_basic_blocks(warp_out, inner_ch, 1, 1, 2,
                                                                 warp_out, self.block_count).cuda()
@@ -357,7 +357,7 @@ class ResnetGeneratorWarp(nn.Module):
 
         out = self.model(x)
         # below is for warping on 3 channel image
-        out = self.model_final(out)
+        # out = self.model_final(out)
 
         """
             Warping phase
@@ -430,7 +430,7 @@ class ResnetGeneratorWarp(nn.Module):
 
         ###############
 
-        return x  # self.model_final(x) ## return x for 3 channel warping
+        return self.model_final(x) ## return x for 3 channel warping
 
 
 class BasicBlock(nn.Module):
