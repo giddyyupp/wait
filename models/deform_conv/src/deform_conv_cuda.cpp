@@ -191,7 +191,7 @@ int deform_conv_forward_cuda(at::Tensor input, at::Tensor weight,
 
   TORCH_CHECK((offset.size(0) == batchSize), "invalid batch size of offset");
 
-  output = output.view({batchSize / im2col_step, im2col_step, nOutputPlane,
+  output = output.reshape({batchSize / im2col_step, im2col_step, nOutputPlane,
                         outputHeight, outputWidth});
   columns = at::zeros(
       {nInputPlane * kW * kH, im2col_step * outputHeight * outputWidth},
@@ -202,10 +202,10 @@ int deform_conv_forward_cuda(at::Tensor input, at::Tensor weight,
     ones = at::ones({outputHeight, outputWidth}, input.options());
   }
 
-  input = input.view({batchSize / im2col_step, im2col_step, nInputPlane,
+  input = input.reshape({batchSize / im2col_step, im2col_step, nInputPlane,
                       inputHeight, inputWidth});
   offset =
-      offset.view({batchSize / im2col_step, im2col_step,
+      offset.reshape({batchSize / im2col_step, im2col_step,
                    deformable_group * 2 * kH * kW, outputHeight, outputWidth});
 
   at::Tensor output_buffer =
@@ -213,7 +213,7 @@ int deform_conv_forward_cuda(at::Tensor input, at::Tensor weight,
                  im2col_step * outputHeight, outputWidth},
                 output.options());
 
-  output_buffer = output_buffer.view(
+  output_buffer = output_buffer.reshape(
       {output_buffer.size(0), group, output_buffer.size(1) / group,
        output_buffer.size(2), output_buffer.size(3)});
 
@@ -222,8 +222,8 @@ int deform_conv_forward_cuda(at::Tensor input, at::Tensor weight,
                       inputWidth, kH, kW, padH, padW, dH, dW, dilationH,
                       dilationW, im2col_step, deformable_group, columns);
 
-    columns = columns.view({group, columns.size(0) / group, columns.size(1)});
-    weight = weight.view({group, weight.size(0) / group, weight.size(1),
+    columns = columns.reshape({group, columns.size(0) / group, columns.size(1)});
+    weight = weight.reshape({group, weight.size(0) / group, weight.size(1),
                           weight.size(2), weight.size(3)});
 
     for (int g = 0; g < group; g++) {
@@ -234,24 +234,24 @@ int deform_conv_forward_cuda(at::Tensor input, at::Tensor weight,
     }
   }
 
-  output_buffer = output_buffer.view(
+  output_buffer = output_buffer.reshape(
       {output_buffer.size(0), output_buffer.size(1) * output_buffer.size(2),
        output_buffer.size(3), output_buffer.size(4)});
 
-  output_buffer = output_buffer.view({batchSize / im2col_step, nOutputPlane,
+  output_buffer = output_buffer.reshape({batchSize / im2col_step, nOutputPlane,
                                       im2col_step, outputHeight, outputWidth});
   output_buffer.transpose_(1, 2);
   output.copy_(output_buffer);
-  output = output.view({batchSize, nOutputPlane, outputHeight, outputWidth});
+  output = output.reshape({batchSize, nOutputPlane, outputHeight, outputWidth});
 
-  input = input.view({batchSize, nInputPlane, inputHeight, inputWidth});
-  offset = offset.view(
+  input = input.reshape({batchSize, nInputPlane, inputHeight, inputWidth});
+  offset = offset.reshape(
       {batchSize, deformable_group * 2 * kH * kW, outputHeight, outputWidth});
 
   if (batch == 0) {
-    output = output.view({nOutputPlane, outputHeight, outputWidth});
-    input = input.view({nInputPlane, inputHeight, inputWidth});
-    offset = offset.view({offset.size(1), offset.size(2), offset.size(3)});
+    output = output.reshape({nOutputPlane, outputHeight, outputWidth});
+    input = input.reshape({nInputPlane, inputHeight, inputWidth});
+    offset = offset.reshape({offset.size(1), offset.size(2), offset.size(3)});
   }
 
   return 1;
@@ -277,9 +277,9 @@ int deform_conv_backward_input_cuda(at::Tensor input, at::Tensor offset,
   if (input.ndimension() == 3) {
     // Force batch
     batch = 0;
-    input = input.view({1, input.size(0), input.size(1), input.size(2)});
-    offset = offset.view({1, offset.size(0), offset.size(1), offset.size(2)});
-    gradOutput = gradOutput.view(
+    input = input.reshape({1, input.size(0), input.size(1), input.size(2)});
+    offset = offset.reshape({1, offset.size(0), offset.size(1), offset.size(2)});
+    gradOutput = gradOutput.reshape(
         {1, gradOutput.size(0), gradOutput.size(1), gradOutput.size(2)});
   }
 
@@ -296,33 +296,33 @@ int deform_conv_backward_input_cuda(at::Tensor input, at::Tensor offset,
       (inputHeight + 2 * padH - (dilationH * (kH - 1) + 1)) / dH + 1;
 
   TORCH_CHECK((offset.size(0) == batchSize), 3, "invalid batch size of offset");
-  gradInput = gradInput.view({batchSize, nInputPlane, inputHeight, inputWidth});
+  gradInput = gradInput.reshape({batchSize, nInputPlane, inputHeight, inputWidth});
   columns = at::zeros(
       {nInputPlane * kW * kH, im2col_step * outputHeight * outputWidth},
       input.options());
 
   // change order of grad output
-  gradOutput = gradOutput.view({batchSize / im2col_step, im2col_step,
+  gradOutput = gradOutput.reshape({batchSize / im2col_step, im2col_step,
                                 nOutputPlane, outputHeight, outputWidth});
   gradOutput.transpose_(1, 2);
 
-  gradInput = gradInput.view({batchSize / im2col_step, im2col_step, nInputPlane,
+  gradInput = gradInput.reshape({batchSize / im2col_step, im2col_step, nInputPlane,
                               inputHeight, inputWidth});
-  input = input.view({batchSize / im2col_step, im2col_step, nInputPlane,
+  input = input.reshape({batchSize / im2col_step, im2col_step, nInputPlane,
                       inputHeight, inputWidth});
-  gradOffset = gradOffset.view({batchSize / im2col_step, im2col_step,
+  gradOffset = gradOffset.reshape({batchSize / im2col_step, im2col_step,
                                 deformable_group * 2 * kH * kW, outputHeight,
                                 outputWidth});
   offset =
-      offset.view({batchSize / im2col_step, im2col_step,
+      offset.reshape({batchSize / im2col_step, im2col_step,
                    deformable_group * 2 * kH * kW, outputHeight, outputWidth});
 
   for (int elt = 0; elt < batchSize / im2col_step; elt++) {
     // divide into groups
-    columns = columns.view({group, columns.size(0) / group, columns.size(1)});
-    weight = weight.view({group, weight.size(0) / group, weight.size(1),
+    columns = columns.reshape({group, columns.size(0) / group, columns.size(1)});
+    weight = weight.reshape({group, weight.size(0) / group, weight.size(1),
                           weight.size(2), weight.size(3)});
-    gradOutput = gradOutput.view(
+    gradOutput = gradOutput.reshape(
         {gradOutput.size(0), group, gradOutput.size(1) / group,
          gradOutput.size(2), gradOutput.size(3), gradOutput.size(4)});
 
@@ -332,8 +332,8 @@ int deform_conv_backward_input_cuda(at::Tensor input, at::Tensor offset,
     }
 
     columns =
-        columns.view({columns.size(0) * columns.size(1), columns.size(2)});
-    gradOutput = gradOutput.view(
+        columns.reshape({columns.size(0) * columns.size(1), columns.size(2)});
+    gradOutput = gradOutput.reshape(
         {gradOutput.size(0), gradOutput.size(1) * gradOutput.size(2),
          gradOutput.size(3), gradOutput.size(4), gradOutput.size(5)});
 
@@ -349,22 +349,22 @@ int deform_conv_backward_input_cuda(at::Tensor input, at::Tensor offset,
 
   gradOutput.transpose_(1, 2);
   gradOutput =
-      gradOutput.view({batchSize, nOutputPlane, outputHeight, outputWidth});
+      gradOutput.reshape({batchSize, nOutputPlane, outputHeight, outputWidth});
 
-  gradInput = gradInput.view({batchSize, nInputPlane, inputHeight, inputWidth});
-  input = input.view({batchSize, nInputPlane, inputHeight, inputWidth});
-  gradOffset = gradOffset.view(
+  gradInput = gradInput.reshape({batchSize, nInputPlane, inputHeight, inputWidth});
+  input = input.reshape({batchSize, nInputPlane, inputHeight, inputWidth});
+  gradOffset = gradOffset.reshape(
       {batchSize, deformable_group * 2 * kH * kW, outputHeight, outputWidth});
-  offset = offset.view(
+  offset = offset.reshape(
       {batchSize, deformable_group * 2 * kH * kW, outputHeight, outputWidth});
 
   if (batch == 0) {
-    gradOutput = gradOutput.view({nOutputPlane, outputHeight, outputWidth});
-    input = input.view({nInputPlane, inputHeight, inputWidth});
-    gradInput = gradInput.view({nInputPlane, inputHeight, inputWidth});
-    offset = offset.view({offset.size(1), offset.size(2), offset.size(3)});
+    gradOutput = gradOutput.reshape({nOutputPlane, outputHeight, outputWidth});
+    input = input.reshape({nInputPlane, inputHeight, inputWidth});
+    gradInput = gradInput.reshape({nInputPlane, inputHeight, inputWidth});
+    offset = offset.reshape({offset.size(1), offset.size(2), offset.size(3)});
     gradOffset =
-        gradOffset.view({offset.size(1), offset.size(2), offset.size(3)});
+        gradOffset.reshape({offset.size(1), offset.size(2), offset.size(3)});
   }
 
   return 1;
@@ -392,9 +392,9 @@ int deform_conv_backward_parameters_cuda(
   if (input.ndimension() == 3) {
     // Force batch
     batch = 0;
-    input = input.view(
+    input = input.reshape(
         at::IntList({1, input.size(0), input.size(1), input.size(2)}));
-    gradOutput = gradOutput.view(
+    gradOutput = gradOutput.reshape(
         {1, gradOutput.size(0), gradOutput.size(1), gradOutput.size(2)});
   }
 
@@ -416,27 +416,27 @@ int deform_conv_backward_parameters_cuda(
       {nInputPlane * kW * kH, im2col_step * outputHeight * outputWidth},
       input.options());
 
-  gradOutput = gradOutput.view({batchSize / im2col_step, im2col_step,
+  gradOutput = gradOutput.reshape({batchSize / im2col_step, im2col_step,
                                 nOutputPlane, outputHeight, outputWidth});
   gradOutput.transpose_(1, 2);
 
   at::Tensor gradOutputBuffer = at::zeros_like(gradOutput);
   gradOutputBuffer =
-      gradOutputBuffer.view({batchSize / im2col_step, nOutputPlane, im2col_step,
+      gradOutputBuffer.reshape({batchSize / im2col_step, nOutputPlane, im2col_step,
                              outputHeight, outputWidth});
   gradOutputBuffer.copy_(gradOutput);
   gradOutputBuffer =
-      gradOutputBuffer.view({batchSize / im2col_step, nOutputPlane,
+      gradOutputBuffer.reshape({batchSize / im2col_step, nOutputPlane,
                              im2col_step * outputHeight, outputWidth});
 
   gradOutput.transpose_(1, 2);
   gradOutput =
-      gradOutput.view({batchSize, nOutputPlane, outputHeight, outputWidth});
+      gradOutput.reshape({batchSize, nOutputPlane, outputHeight, outputWidth});
 
-  input = input.view({batchSize / im2col_step, im2col_step, nInputPlane,
+  input = input.reshape({batchSize / im2col_step, im2col_step, nInputPlane,
                       inputHeight, inputWidth});
   offset =
-      offset.view({batchSize / im2col_step, im2col_step,
+      offset.reshape({batchSize / im2col_step, im2col_step,
                    deformable_group * 2 * kH * kW, outputHeight, outputWidth});
 
   for (int elt = 0; elt < batchSize / im2col_step; elt++) {
@@ -445,12 +445,12 @@ int deform_conv_backward_parameters_cuda(
                       dilationW, im2col_step, deformable_group, columns);
 
     // divide into group
-    gradOutputBuffer = gradOutputBuffer.view(
+    gradOutputBuffer = gradOutputBuffer.reshape(
         {gradOutputBuffer.size(0), group, gradOutputBuffer.size(1) / group,
          gradOutputBuffer.size(2), gradOutputBuffer.size(3)});
-    columns = columns.view({group, columns.size(0) / group, columns.size(1)});
+    columns = columns.reshape({group, columns.size(0) / group, columns.size(1)});
     gradWeight =
-        gradWeight.view({group, gradWeight.size(0) / group, gradWeight.size(1),
+        gradWeight.reshape({group, gradWeight.size(0) / group, gradWeight.size(1),
                          gradWeight.size(2), gradWeight.size(3)});
 
     for (int g = 0; g < group; g++) {
@@ -460,24 +460,24 @@ int deform_conv_backward_parameters_cuda(
                                   columns[g].transpose(1, 0), 1.0, scale)
                           .view_as(gradWeight[g]);
     }
-    gradOutputBuffer = gradOutputBuffer.view(
+    gradOutputBuffer = gradOutputBuffer.reshape(
         {gradOutputBuffer.size(0),
          gradOutputBuffer.size(1) * gradOutputBuffer.size(2),
          gradOutputBuffer.size(3), gradOutputBuffer.size(4)});
     columns =
-        columns.view({columns.size(0) * columns.size(1), columns.size(2)});
-    gradWeight = gradWeight.view({gradWeight.size(0) * gradWeight.size(1),
+        columns.reshape({columns.size(0) * columns.size(1), columns.size(2)});
+    gradWeight = gradWeight.reshape({gradWeight.size(0) * gradWeight.size(1),
                                   gradWeight.size(2), gradWeight.size(3),
                                   gradWeight.size(4)});
   }
 
-  input = input.view({batchSize, nInputPlane, inputHeight, inputWidth});
-  offset = offset.view(
+  input = input.reshape({batchSize, nInputPlane, inputHeight, inputWidth});
+  offset = offset.reshape(
       {batchSize, deformable_group * 2 * kH * kW, outputHeight, outputWidth});
 
   if (batch == 0) {
-    gradOutput = gradOutput.view({nOutputPlane, outputHeight, outputWidth});
-    input = input.view({nInputPlane, inputHeight, inputWidth});
+    gradOutput = gradOutput.reshape({nOutputPlane, outputHeight, outputWidth});
+    input = input.reshape({nInputPlane, inputHeight, inputWidth});
   }
 
   return 1;
@@ -522,13 +522,13 @@ void modulated_deform_conv_cuda_forward(
   }
 
   // resize output
-  output = output.view({batch, channels_out, height_out, width_out}).zero_();
+  output = output.reshape({batch, channels_out, height_out, width_out}).zero_();
   // resize temporary columns
   columns =
       at::zeros({channels * kernel_h * kernel_w, 1 * height_out * width_out},
                 input.options());
 
-  output = output.view({output.size(0), group, output.size(1) / group,
+  output = output.reshape({output.size(0), group, output.size(1) / group,
                         output.size(2), output.size(3)});
 
   for (int b = 0; b < batch; b++) {
@@ -538,9 +538,9 @@ void modulated_deform_conv_cuda_forward(
         dilation_h, dilation_w, deformable_group, columns);
 
     // divide into group
-    weight = weight.view({group, weight.size(0) / group, weight.size(1),
+    weight = weight.reshape({group, weight.size(0) / group, weight.size(1),
                           weight.size(2), weight.size(3)});
-    columns = columns.view({group, columns.size(0) / group, columns.size(1)});
+    columns = columns.reshape({group, columns.size(0) / group, columns.size(1)});
 
     for (int g = 0; g < group; g++) {
       output[b][g] = output[b][g]
@@ -549,17 +549,17 @@ void modulated_deform_conv_cuda_forward(
                          .view_as(output[b][g]);
     }
 
-    weight = weight.view({weight.size(0) * weight.size(1), weight.size(2),
+    weight = weight.reshape({weight.size(0) * weight.size(1), weight.size(2),
                           weight.size(3), weight.size(4)});
     columns =
-        columns.view({columns.size(0) * columns.size(1), columns.size(2)});
+        columns.reshape({columns.size(0) * columns.size(1), columns.size(2)});
   }
 
-  output = output.view({output.size(0), output.size(1) * output.size(2),
+  output = output.reshape({output.size(0), output.size(1) * output.size(2),
                         output.size(3), output.size(4)});
 
   if (with_bias) {
-    output += bias.view({1, bias.size(0), 1, 1});
+    output += bias.reshape({1, bias.size(0), 1, 1});
   }
 }
 
@@ -600,18 +600,18 @@ void modulated_deform_conv_cuda_backward(
     ones = at::ones({height_out, width_out}, input.options());
   }
 
-  grad_input = grad_input.view({batch, channels, height, width});
+  grad_input = grad_input.reshape({batch, channels, height, width});
   columns = at::zeros({channels * kernel_h * kernel_w, height_out * width_out},
                       input.options());
 
   grad_output =
-      grad_output.view({grad_output.size(0), group, grad_output.size(1) / group,
+      grad_output.reshape({grad_output.size(0), group, grad_output.size(1) / group,
                         grad_output.size(2), grad_output.size(3)});
 
   for (int b = 0; b < batch; b++) {
     // divide int group
-    columns = columns.view({group, columns.size(0) / group, columns.size(1)});
-    weight = weight.view({group, weight.size(0) / group, weight.size(1),
+    columns = columns.reshape({group, columns.size(0) / group, columns.size(1)});
+    weight = weight.reshape({group, weight.size(0) / group, weight.size(1),
                           weight.size(2), weight.size(3)});
 
     for (int g = 0; g < group; g++) {
@@ -620,8 +620,8 @@ void modulated_deform_conv_cuda_backward(
     }
 
     columns =
-        columns.view({columns.size(0) * columns.size(1), columns.size(2)});
-    weight = weight.view({weight.size(0) * weight.size(1), weight.size(2),
+        columns.reshape({columns.size(0) * columns.size(1), columns.size(2)});
+    weight = weight.reshape({weight.size(0) * weight.size(1), weight.size(2),
                           weight.size(3), weight.size(4)});
 
     // gradient w.r.t. input coordinate data
@@ -643,12 +643,12 @@ void modulated_deform_conv_cuda_backward(
         width_out, kernel_h, kernel_w, pad_h, pad_w, stride_h, stride_w,
         dilation_h, dilation_w, deformable_group, columns);
 
-    columns = columns.view({group, columns.size(0) / group, columns.size(1)});
-    grad_weight = grad_weight.view({group, grad_weight.size(0) / group,
+    columns = columns.reshape({group, columns.size(0) / group, columns.size(1)});
+    grad_weight = grad_weight.reshape({group, grad_weight.size(0) / group,
                                     grad_weight.size(1), grad_weight.size(2),
                                     grad_weight.size(3)});
     if (with_bias)
-      grad_bias = grad_bias.view({group, grad_bias.size(0) / group});
+      grad_bias = grad_bias.reshape({group, grad_bias.size(0) / group});
 
     for (int g = 0; g < group; g++) {
       grad_weight[g] =
@@ -659,21 +659,21 @@ void modulated_deform_conv_cuda_backward(
       if (with_bias) {
         grad_bias[g] =
             grad_bias[g]
-                .view({-1, 1})
-                .addmm_(grad_output[b][g].flatten(1), ones.view({-1, 1}))
-                .view(-1);
+                .reshape({-1, 1})
+                .addmm_(grad_output[b][g].flatten(1), ones.reshape({-1, 1}))
+                .reshape(-1);
       }
     }
 
     columns =
-        columns.view({columns.size(0) * columns.size(1), columns.size(2)});
-    grad_weight = grad_weight.view({grad_weight.size(0) * grad_weight.size(1),
+        columns.reshape({columns.size(0) * columns.size(1), columns.size(2)});
+    grad_weight = grad_weight.reshape({grad_weight.size(0) * grad_weight.size(1),
                                     grad_weight.size(2), grad_weight.size(3),
                                     grad_weight.size(4)});
     if (with_bias)
-      grad_bias = grad_bias.view({grad_bias.size(0) * grad_bias.size(1)});
+      grad_bias = grad_bias.reshape({grad_bias.size(0) * grad_bias.size(1)});
   }
-  grad_output = grad_output.view({grad_output.size(0) * grad_output.size(1),
+  grad_output = grad_output.reshape({grad_output.size(0) * grad_output.size(1),
                                   grad_output.size(2), grad_output.size(3),
                                   grad_output.size(4)});
 }
