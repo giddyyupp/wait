@@ -14,12 +14,16 @@ diff_scores = []
 
 source_files = os.listdir(opt.source_dir)
 source_files.sort(key=lambda f: int(re.sub('\D', '', f)))
+#print(source_files)
 fake_files = os.listdir(opt.fake_dir)
 fake_files.sort(key=lambda f: int(re.sub('\D', '', f)))
+#print(fake_files)
 
 for i in range(len(source_files) - 1):
+    #print(i)
     src_t_1 = Image.open(opt.source_dir + '/' + source_files[i])
     src_t_2 = Image.open(opt.source_dir + '/' + source_files[i + 1])
+    
     fake_t_1 = Image.open(opt.fake_dir + '/' + fake_files[i])
     fake_t_2 = Image.open(opt.fake_dir + '/' + fake_files[i + 1])
 

@@ -219,13 +219,14 @@ class ResnetGeneratorWarp(nn.Module):
                  padding_type='reflect'):
         assert (n_blocks >= 0)
         super(ResnetGeneratorWarp, self).__init__()
-        self.block_count = 2
-        self.cycle_consistency_finetune = True
+        self.block_count = 8
+        self.cycle_consistency_finetune = False
         self.warping_reverse = False
 
         self.input_nc = input_nc
         self.output_nc = output_nc
         self.ngf = ngf
+
         if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
         else:
@@ -260,25 +261,25 @@ class ResnetGeneratorWarp(nn.Module):
                       nn.ReLU(True)]
 
         k = 3
-        warp_out = 64  # feature:64, image:3
-        inner_ch = 64  # feature:64, image:3
+        warp_out = 3  # feature:64, image:3
+        inner_ch = 3  # feature:64, image:3
 
         self.offset_feats = self._compute_chain_of_basic_blocks(warp_out, inner_ch, 1, 1, 2,
                                                                 warp_out, self.block_count).cuda()
 
         #### Offsets
         self.offsets1 = self._single_conv(inner_ch, k, k, 3, warp_out).cuda()
-        # self.offsets2 = self._single_conv(inner_ch, k, k, 6, warp_out).cuda()
-        # self.offsets3 = self._single_conv(inner_ch, k, k, 12, warp_out).cuda()
-        # self.offsets4 = self._single_conv(inner_ch, k, k, 18, warp_out).cuda()
-        # self.offsets5 = self._single_conv(inner_ch, k, k, 24, warp_out).cuda()
+        self.offsets2 = self._single_conv(inner_ch, k, k, 6, warp_out).cuda()
+        self.offsets3 = self._single_conv(inner_ch, k, k, 12, warp_out).cuda()
+        self.offsets4 = self._single_conv(inner_ch, k, k, 18, warp_out).cuda()
+        self.offsets5 = self._single_conv(inner_ch, k, k, 24, warp_out).cuda()
 
         #### Deformable Conv
         self.deform_conv1 = self._deform_conv(warp_out, k, k, 3, warp_out).cuda()
-        # self.deform_conv2 = self._deform_conv(warp_out, k, k, 6, warp_out).cuda()
-        # self.deform_conv3 = self._deform_conv(warp_out, k, k, 12, warp_out).cuda()
-        # self.deform_conv4 = self._deform_conv(warp_out, k, k, 18, warp_out).cuda()
-        # self.deform_conv5 = self._deform_conv(warp_out, k, k, 24, warp_out).cuda()
+        self.deform_conv2 = self._deform_conv(warp_out, k, k, 6, warp_out).cuda()
+        self.deform_conv3 = self._deform_conv(warp_out, k, k, 12, warp_out).cuda()
+        self.deform_conv4 = self._deform_conv(warp_out, k, k, 18, warp_out).cuda()
+        self.deform_conv5 = self._deform_conv(warp_out, k, k, 24, warp_out).cuda()
 
         model_final = [nn.ReflectionPad2d(3)]
         model_final += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
@@ -286,6 +287,7 @@ class ResnetGeneratorWarp(nn.Module):
 
         self.model = nn.Sequential(*model)
         self.model_final = nn.Sequential(*model_final)
+        self.tanh = nn.Tanh()
 
     def _compute_chain_of_basic_blocks(self, nc, ic, kh, kw, dd, dg, b):
         num_blocks = b
@@ -301,10 +303,11 @@ class ResnetGeneratorWarp(nn.Module):
                 in_ch,
                 kernel_size=1, stride=stride, bias=False
             ),
-            nn.BatchNorm2d(
-                in_ch,
-                momentum=BN_MOMENTUM
-            ),
+            nn.InstanceNorm2d(in_ch),
+            #nn.BatchNorm2d(
+            #    in_ch,
+            #    momentum=BN_MOMENTUM
+            #),
         )
 
         ##########
@@ -353,17 +356,17 @@ class ResnetGeneratorWarp(nn.Module):
         batch_size = inputs.size(0)
         ref_x = inputs[:, 0:self.input_nc, :, :]
         sup_x = inputs[:, self.input_nc:, :, :]
-        x = torch.cat((ref_x, sup_x), 0)
+        x = torch.cat((ref_x, sup_x), 0).contiguous()
 
         out = self.model(x)
         # below is for warping on 3 channel image
-        # out = self.model_final(out)
+        out = self.model_final(out)
 
         """
             Warping phase
         """
-        ref_x = out[:batch_size, :, :, :]
-        sup_x = out[batch_size:, :, :, :]
+        ref_x = out[:batch_size, :, :, :].contiguous()
+        sup_x = out[batch_size:, :, :, :].contiguous()
 
         #### cycle consistency
         if self.cycle_consistency_finetune:
@@ -388,22 +391,22 @@ class ResnetGeneratorWarp(nn.Module):
         #########
 
         off1 = self.offsets1(off_feats_cuda)
-        warped_x1 = self.deform_conv1(sup_x_cuda, off1)
+        warped_x1 = self.deform_conv1(sup_x_cuda.contiguous(), off1.contiguous())
 
-        # off2 = self.offsets2(off_feats_cuda)
-        # warped_x2 = self.deform_conv2(sup_x_cuda, off2)
-        #
-        # off3 = self.offsets3(off_feats_cuda)
-        # warped_x3 = self.deform_conv3(sup_x_cuda, off3)
-        #
-        # off4 = self.offsets4(off_feats_cuda)
-        # warped_x4 = self.deform_conv4(sup_x_cuda, off4)
-        #
-        # off5 = self.offsets5(off_feats_cuda)
-        # warped_x5 = self.deform_conv5(sup_x_cuda, off5)
+        off2 = self.offsets2(off_feats_cuda)
+        warped_x2 = self.deform_conv2(sup_x_cuda.contiguous(), off2.contiguous())
+        
+        off3 = self.offsets3(off_feats_cuda)
+        warped_x3 = self.deform_conv3(sup_x_cuda.contiguous(), off3.contiguous())
+        
+        off4 = self.offsets4(off_feats_cuda)
+        warped_x4 = self.deform_conv4(sup_x_cuda.contiguous(), off4.contiguous())
+        
+        off5 = self.offsets5(off_feats_cuda)
+        warped_x5 = self.deform_conv5(sup_x_cuda.contiguous(), off5.contiguous())
 
-        # x = 0.25 * (warped_x1 + warped_x2 + warped_x3 + warped_x4)
-        x = warped_x1
+        x = 0.20 * (warped_x1 + warped_x2 + warped_x3 + warped_x4 + warped_x5)
+        #x = warped_x1
 
         #### backwards
         if self.cycle_consistency_finetune:
@@ -430,7 +433,7 @@ class ResnetGeneratorWarp(nn.Module):
 
         ###############
 
-        return self.model_final(x) ## return x for 3 channel warping
+        return self.tanh(x) # self.model_final(x) ## return x for 3 channel warping
 
 
 class BasicBlock(nn.Module):
