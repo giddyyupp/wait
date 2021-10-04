@@ -352,15 +352,21 @@ class ResnetGeneratorWarp(nn.Module):
             deformable_groups=dg)
         return conv_offset2d
 
-    def forward(self, inputs):
-        batch_size = inputs.size(0)
-        ref_x = inputs[:, 0:self.input_nc, :, :]
-        sup_x = inputs[:, self.input_nc:, :, :]
-        x = torch.cat((ref_x, sup_x), 0).contiguous()
+    def forward(self, inputs, ordered=True):
+        if ordered:
+            batch_size = inputs.size(0)
+            ref_x = inputs[:, 0:self.input_nc, :, :]
+            sup_x = inputs[:, self.input_nc:, :, :]
+            x = torch.cat((ref_x, sup_x), 0).contiguous()
+        else:  # un-ordered dataset
+            x = inputs
 
         out = self.model(x)
         # below is for warping on 3 channel image
         out = self.model_final(out)
+
+        if not ordered:  # un-ordered dataset
+            return out
 
         """
             Warping phase
@@ -442,10 +448,10 @@ class BasicBlock(nn.Module):
     def __init__(self, inplanes, planes, stride=1, downsample=None):
         super(BasicBlock, self).__init__()
         self.conv1 = conv3x3(inplanes, planes, stride)
-        self.in1 = nn.InstanceNorm2d(planes)  # , momentum=BN_MOMENTUM
+        self.norm1 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)  # , momentum=BN_MOMENTUM
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(planes, planes)
-        self.in2 = nn.InstanceNorm2d(planes)  # , momentum=BN_MOMENTUM
+        self.norm2 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)  # , momentum=BN_MOMENTUM
         self.downsample = downsample
         self.stride = stride
 
@@ -453,11 +459,11 @@ class BasicBlock(nn.Module):
         residual = x
 
         out = self.conv1(x)
-        out = self.in1(out)
+        out = self.norm1(out)
         out = self.relu(out)
 
         out = self.conv2(out)
-        out = self.in2(out)
+        out = self.norm2(out)
 
         if self.downsample is not None:
             residual = self.downsample(x)

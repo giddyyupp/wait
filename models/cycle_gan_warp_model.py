@@ -90,12 +90,12 @@ class CycleGANWarpModel(BaseModel):
 
     def forward(self):
 
-        self.fake_B_1 = self.netG_A(torch.cat((self.real_A_1, self.real_A_2), 1))
+        self.fake_B_1 = self.netG_A(torch.cat((self.real_A_2, self.real_A_1), 1), ordered=True)
 
-        self.rec_A_1 = self.netG_B(torch.cat((self.fake_B_1, self.fake_B_1), 1))
+        self.rec_A_1 = self.netG_B(torch.cat((self.fake_B_1, self.fake_B_1), 1), ordered=True)
 
-        self.fake_A = self.netG_B(torch.cat((self.real_B, self.real_B), 1))
-        self.rec_B = self.netG_A(torch.cat((self.fake_A, self.fake_A), 1))
+        self.fake_A = self.netG_B(torch.cat((self.real_B, self.real_B), 1), ordered=True)
+        self.rec_B = self.netG_A(torch.cat((self.fake_A, self.fake_A), 1), ordered=True)
 
     def backward_D_basic(self, netD, real, fake):
         # Real
@@ -126,10 +126,10 @@ class CycleGANWarpModel(BaseModel):
         # Identity loss
         if lambda_idt > 0:
             # G_A should be identity if real_B is fed.
-            self.idt_A = self.netG_A(torch.cat((self.real_B, self.real_B), 1))
+            self.idt_A = self.netG_A(torch.cat((self.real_B, self.real_B), 1), ordered=True)
             self.loss_idt_A = self.criterionIdt(self.idt_A, self.real_B) * lambda_B * lambda_idt
             # G_B should be identity if real_A is fed.
-            self.idt_B_1 = self.netG_B(torch.cat((self.real_A_1, self.real_A_1), 1))
+            self.idt_B_1 = self.netG_B(torch.cat((self.real_A_1, self.real_A_1), 1), ordered=True)
             self.loss_idt_B_1 = self.criterionIdt(self.idt_B_1, self.real_A_1) * lambda_A * lambda_idt
         else:
             self.loss_idt_A = 0
