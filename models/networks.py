@@ -448,10 +448,10 @@ class BasicBlock(nn.Module):
     def __init__(self, inplanes, planes, stride=1, downsample=None):
         super(BasicBlock, self).__init__()
         self.conv1 = conv3x3(inplanes, planes, stride)
-        self.norm1 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)  # , momentum=BN_MOMENTUM
+        self.norm1 = nn.InstanceNorm2d(planes)  # , momentum=BN_MOMENTUM
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(planes, planes)
-        self.norm2 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)  # , momentum=BN_MOMENTUM
+        self.norm2 = nn.InstanceNorm2d(planes)  # , momentum=BN_MOMENTUM
         self.downsample = downsample
         self.stride = stride
 
