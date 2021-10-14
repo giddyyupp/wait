@@ -32,7 +32,7 @@ class TestModel(BaseModel):
         self.model_names = ['G']
 
         self.netG = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG,
-                                      opt.norm, not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids,
+                                      opt.norm, None, not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids,
                                       depth=18, fpn_weights=opt.fpn_weights)
 
         # assigns the model to self.netG so that it can be loaded

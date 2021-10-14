@@ -35,8 +35,11 @@ class BaseOptions():
                             help='chooses which model to use. cycle_gan, cycle_gan_warp, cycle_gan_hough, pix2pix, test')
         parser.add_argument('--direction', type=str, default='AtoB', help='AtoB or BtoA')
         parser.add_argument('--epoch', type=str, default='100', help='which epoch to load? set to latest to use latest cached model')
-        parser.add_argument('--num_threads', default=16, type=int, help='# threads for loading data')
+        parser.add_argument('--num_threads', default=8, type=int, help='# threads for loading data')
         parser.add_argument('--norm', type=str, default='instance', help='instance normalization or batch normalization')
+        parser.add_argument('--norm_warp', type=str, default='instance', help='instance normalization or batch normalization for warp models')
+        parser.add_argument('--use_warp_speed_ups', action='store_true', help='if true, makes use of ordered flags in warp models, otherwise not')
+        parser.add_argument('--rec_bug_fix', action='store_true', help='if true, fixes the order of realA images, otherwise not')
         parser.add_argument('--serial_batches', action='store_true', help='if true, takes images in order to make batches, otherwise takes them randomly')
         parser.add_argument('--no_dropout',  default=False, help='no dropout for the generator')
         parser.add_argument('--max_dataset_size', type=int, default=float("inf"), help='Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.')
@@ -90,7 +93,10 @@ class BaseOptions():
         # save to the disk
         expr_dir = os.path.join(opt.checkpoints_dir, opt.name)
         util.mkdirs(expr_dir)
-        file_name = os.path.join(expr_dir, 'opt.txt')
+        prefix = 'test'
+        if opt.isTrain:
+            prefix = 'train'
+        file_name = os.path.join(expr_dir, f'{prefix}_opt.txt')
         with open(file_name, 'wt') as opt_file:
             opt_file.write(message)
             opt_file.write('\n')

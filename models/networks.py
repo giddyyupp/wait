@@ -12,9 +12,6 @@ import math
 import torch.utils.model_zoo as model_zoo
 import sys
 
-
-BN_MOMENTUM = 0.1
-
 ###############################################################################
 # Helper Functions
 ###############################################################################
@@ -82,15 +79,17 @@ def init_net(net, init_type='normal', init_gain=0.02, gpu_ids=[]):
     return net
 
 
-def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, init_type='normal',
+def define_G(input_nc, output_nc, ngf, netG, norm='batch', norm_warp=None, use_dropout=False, init_type='normal',
              init_gain=0.02, gpu_ids=[], depth=18, fpn_weights=[1.0, 1.0, 1.0, 1.0]):
     net = None
     norm_layer = get_norm_layer(norm_type=norm)
+    if norm_warp:
+        norm_layer_warp = get_norm_layer(norm_type=norm_warp)
 
     if netG == 'resnet_9blocks':
         net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
     elif netG == 'resnet_9blocks_warp':
-        net = ResnetGeneratorWarp(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
+        net = ResnetGeneratorWarp(input_nc, output_nc, ngf, norm_layer=norm_layer, norm_warp=norm_layer_warp, use_dropout=use_dropout, n_blocks=9)
     elif netG == 'resnet_9blocks_hough':
         net = ResnetGeneratorHough(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
     elif netG == 'resnet_6blocks':
@@ -100,7 +99,7 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
         net = resnet18(input_nc, output_nc, ngf, fpn_weights, use_dropout=use_dropout, pretrained=False)
     elif netG == 'resnet_fpn_warp':
         # Create the GANILLA + feature warp model
-        net = resnet18_warp(input_nc, output_nc, ngf, fpn_weights, use_dropout=use_dropout, pretrained=False)
+        net = resnet18_warp(input_nc, output_nc, ngf, fpn_weights, norm_warp=norm_layer_warp, use_dropout=use_dropout, pretrained=False)
     elif netG == 'resnet_fpn_hough':
         # Create the model
         print("Not implemented yet!")
@@ -215,7 +214,7 @@ class ResnetGenerator(nn.Module):
 
 # Feature Warping
 class ResnetGeneratorWarp(nn.Module):
-    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6,
+    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, norm_warp=nn.BatchNorm2d, use_dropout=False, n_blocks=6,
                  padding_type='reflect'):
         assert (n_blocks >= 0)
         super(ResnetGeneratorWarp, self).__init__()
@@ -226,6 +225,7 @@ class ResnetGeneratorWarp(nn.Module):
         self.input_nc = input_nc
         self.output_nc = output_nc
         self.ngf = ngf
+        self.norm_warp = norm_warp
 
         if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
@@ -303,10 +303,10 @@ class ResnetGeneratorWarp(nn.Module):
                 in_ch,
                 kernel_size=1, stride=stride, bias=False
             ),
-            nn.InstanceNorm2d(in_ch),
+            self.norm_warp(in_ch),
+            # nn.InstanceNorm2d(in_ch),
             #nn.BatchNorm2d(
             #    in_ch,
-            #    momentum=BN_MOMENTUM
             #),
         )
 
@@ -316,6 +316,7 @@ class ResnetGeneratorWarp(nn.Module):
             block(
                 nc,
                 out_ch,
+                self.norm_warp,
                 stride,
                 downsample
             )
@@ -325,7 +326,8 @@ class ResnetGeneratorWarp(nn.Module):
             layers.append(
                 block(
                     in_ch,
-                    out_ch
+                    out_ch,
+                    self.norm_warp
                 )
             )
 
@@ -445,13 +447,13 @@ class ResnetGeneratorWarp(nn.Module):
 class BasicBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None):
+    def __init__(self, inplanes, planes, norm_layer, stride=1, downsample=None):
         super(BasicBlock, self).__init__()
         self.conv1 = conv3x3(inplanes, planes, stride)
-        self.norm1 = nn.InstanceNorm2d(planes)  # , momentum=BN_MOMENTUM
+        self.norm1 = norm_layer(planes)
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(planes, planes)
-        self.norm2 = nn.InstanceNorm2d(planes)  # , momentum=BN_MOMENTUM
+        self.norm2 = norm_layer(planes)
         self.downsample = downsample
         self.stride = stride
 
@@ -1082,7 +1084,7 @@ class ResNet(nn.Module):
 
 class ResNetWarp(nn.Module):
 
-    def __init__(self, input_nc, output_nc, ngf, fpn_weights, block, layers, use_dropout):
+    def __init__(self, input_nc, output_nc, ngf, fpn_weights, norm_warp, block, layers, use_dropout):
         self.inplanes = ngf
         super(ResNetWarp, self).__init__()
 
@@ -1092,6 +1094,7 @@ class ResNetWarp(nn.Module):
 
         self.input_nc = input_nc
         self.output_nc = output_nc
+        self.norm_warp = norm_warp
 
         # first conv
         self.pad1 = nn.ReflectionPad2d(input_nc)
@@ -1212,10 +1215,10 @@ class ResNetWarp(nn.Module):
                 in_ch,
                 kernel_size=1, stride=stride, bias=False
             ),
-            nn.InstanceNorm2d(in_ch),
+            self.norm_warp(in_ch),
+            # nn.InstanceNorm2d(in_ch),
             # nn.BatchNorm2d(
             #     in_ch,
-            #     momentum=BN_MOMENTUM
             # ),
         )
 
@@ -1225,6 +1228,7 @@ class ResNetWarp(nn.Module):
             block(
                 nc,
                 out_ch,
+                self.norm_warp,
                 stride,
                 downsample
             )
@@ -1234,7 +1238,8 @@ class ResNetWarp(nn.Module):
             layers.append(
                 block(
                     in_ch,
-                    out_ch
+                    out_ch,
+                    self.norm_warp
                 )
             )
 
@@ -1377,12 +1382,12 @@ def resnet18(input_nc, output_nc, ngf, fpn_weights, use_dropout, pretrained=Fals
     return model
 
 
-def resnet18_warp(input_nc, output_nc, ngf, fpn_weights, use_dropout, pretrained=False, **kwargs):
+def resnet18_warp(input_nc, output_nc, ngf, fpn_weights, norm_warp, use_dropout, pretrained=False, **kwargs):
     """Constructs a ResNet-18 model.
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
-    model = ResNetWarp(input_nc, output_nc, ngf, fpn_weights, BasicBlock_Ganilla, [2, 2, 2, 2], use_dropout,  **kwargs)
+    model = ResNetWarp(input_nc, output_nc, ngf, fpn_weights, norm_warp, BasicBlock_Ganilla, [2, 2, 2, 2], use_dropout,  **kwargs)
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['resnet18'], model_dir='.'), strict=False)
     return model

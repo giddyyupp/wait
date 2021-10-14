@@ -26,6 +26,9 @@ class CycleGANWarpModel(BaseModel):
     def initialize(self, opt):
         BaseModel.initialize(self, opt)
 
+        self.ordered = not opt.use_warp_speed_ups
+        self.rec_bug_fix = opt.rec_bug_fix
+
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
         self.loss_names = ['D_A_1', 'G_A_1', 'cycle_A_1',
                            'idt_A', 'D_B_1', 'G_B', 'cycle_B', 'idt_B_1']
@@ -47,9 +50,11 @@ class CycleGANWarpModel(BaseModel):
         # The naming conversion is different from those used in the paper
         # Code (paper): G_A (G), G_B (F), D_A (D_Y), D_B (D_X)
         self.netG_A = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, f"{opt.netG}_warp", opt.norm,
+                                        opt.norm_warp,
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids, depth=18,
                                         fpn_weights=opt.fpn_weights)
         self.netG_B = networks.define_G(opt.output_nc, opt.input_nc, opt.ngf, f"{opt.netG}_warp", opt.norm,
+                                        opt.norm_warp,
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids, depth=18,
                                         fpn_weights=opt.fpn_weights)
 
@@ -90,12 +95,15 @@ class CycleGANWarpModel(BaseModel):
 
     def forward(self):
 
-        self.fake_B_1 = self.netG_A(torch.cat((self.real_A_2, self.real_A_1), 1), ordered=True)
+        if self.rec_bug_fix:
+            self.fake_B_1 = self.netG_A(torch.cat((self.real_A_2, self.real_A_1), 1), ordered=True)
+        else:
+            self.fake_B_1 = self.netG_A(torch.cat((self.real_A_1, self.real_A_2), 1), ordered=True)
 
-        self.rec_A_1 = self.netG_B(self.fake_B_1, ordered=False)
-
-        self.fake_A = self.netG_B(self.real_B, ordered=False)
-        self.rec_B = self.netG_A(self.fake_A, ordered=False)
+        if self.isTrain:
+            self.rec_A_1 = self.netG_B(self.fake_B_1, ordered=self.ordered)
+            self.fake_A = self.netG_B(self.real_B, ordered=self.ordered)
+            self.rec_B = self.netG_A(self.fake_A, ordered=self.ordered)
 
     def backward_D_basic(self, netD, real, fake):
         # Real
@@ -126,10 +134,10 @@ class CycleGANWarpModel(BaseModel):
         # Identity loss
         if lambda_idt > 0:
             # G_A should be identity if real_B is fed.
-            self.idt_A = self.netG_A(self.real_B, ordered=False)
+            self.idt_A = self.netG_A(self.real_B, ordered=self.ordered)
             self.loss_idt_A = self.criterionIdt(self.idt_A, self.real_B) * lambda_B * lambda_idt
             # G_B should be identity if real_A is fed.
-            self.idt_B_1 = self.netG_B(self.real_A_1, ordered=False)
+            self.idt_B_1 = self.netG_B(self.real_A_1, ordered=self.ordered)
             self.loss_idt_B_1 = self.criterionIdt(self.idt_B_1, self.real_A_1) * lambda_A * lambda_idt
         else:
             self.loss_idt_A = 0
