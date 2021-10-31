@@ -79,7 +79,7 @@ def init_net(net, init_type='normal', init_gain=0.02, gpu_ids=[]):
     return net
 
 
-def define_G(input_nc, output_nc, ngf, netG, norm='batch', norm_warp=None, use_dropout=False, init_type='normal',
+def define_G(input_nc, output_nc, ngf, netG, norm='batch', norm_warp=None, merge_method='sum', final_conv=False, use_dropout=False, init_type='normal',
              init_gain=0.02, gpu_ids=[], depth=18, fpn_weights=[1.0, 1.0, 1.0, 1.0]):
     net = None
     norm_layer = get_norm_layer(norm_type=norm)
@@ -89,7 +89,8 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', norm_warp=None, use_d
     if netG == 'resnet_9blocks':
         net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
     elif netG == 'resnet_9blocks_warp':
-        net = ResnetGeneratorWarp(input_nc, output_nc, ngf, norm_layer=norm_layer, norm_warp=norm_layer_warp, use_dropout=use_dropout, n_blocks=9)
+        net = ResnetGeneratorWarp(input_nc, output_nc, ngf, norm_layer=norm_layer, norm_warp=norm_layer_warp,
+                                  merge_method=merge_method, final_conv=final_conv, use_dropout=use_dropout, n_blocks=9)
     elif netG == 'resnet_9blocks_hough':
         net = ResnetGeneratorHough(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
     elif netG == 'resnet_6blocks':
@@ -99,7 +100,8 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', norm_warp=None, use_d
         net = resnet18(input_nc, output_nc, ngf, fpn_weights, use_dropout=use_dropout, pretrained=False)
     elif netG == 'resnet_fpn_warp':
         # Create the GANILLA + feature warp model
-        net = resnet18_warp(input_nc, output_nc, ngf, fpn_weights, norm_warp=norm_layer_warp, use_dropout=use_dropout, pretrained=False)
+        net = resnet18_warp(input_nc, output_nc, ngf, fpn_weights, norm_warp=norm_layer_warp, use_dropout=use_dropout,
+                            pretrained=False)
     elif netG == 'resnet_fpn_hough':
         # Create the model
         print("Not implemented yet!")
@@ -214,8 +216,8 @@ class ResnetGenerator(nn.Module):
 
 # Feature Warping
 class ResnetGeneratorWarp(nn.Module):
-    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, norm_warp=nn.BatchNorm2d, use_dropout=False, n_blocks=6,
-                 padding_type='reflect'):
+    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, norm_warp=nn.BatchNorm2d,
+                 merge_method='sum', final_conv=False, use_dropout=False, n_blocks=6, padding_type='reflect'):
         assert (n_blocks >= 0)
         super(ResnetGeneratorWarp, self).__init__()
         self.block_count = 8
@@ -226,6 +228,8 @@ class ResnetGeneratorWarp(nn.Module):
         self.output_nc = output_nc
         self.ngf = ngf
         self.norm_warp = norm_warp
+        self.merge_method = merge_method
+        self.final_conv = final_conv
 
         if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
@@ -288,6 +292,19 @@ class ResnetGeneratorWarp(nn.Module):
         self.model = nn.Sequential(*model)
         self.model_final = nn.Sequential(*model_final)
         self.tanh = nn.Tanh()
+
+        if self.final_conv:
+            if self.merge_method == 'sum':
+                final_depth = k
+            elif self.merge_method == 'concat':
+                final_depth = k*5
+            else:
+                final_depth = k
+
+            model_final2 = [nn.ReflectionPad2d(3)]
+            model_final2 += [nn.Conv2d(final_depth, output_nc, kernel_size=7, padding=0)]
+            model_final2 += [nn.Tanh()]
+            self.model_final2 = nn.Sequential(*model_final2)
 
     def _compute_chain_of_basic_blocks(self, nc, ic, kh, kw, dd, dg, b):
         num_blocks = b
@@ -413,8 +430,12 @@ class ResnetGeneratorWarp(nn.Module):
         off5 = self.offsets5(off_feats_cuda)
         warped_x5 = self.deform_conv5(sup_x_cuda.contiguous(), off5.contiguous())
 
-        x = 0.20 * (warped_x1 + warped_x2 + warped_x3 + warped_x4 + warped_x5)
-        #x = warped_x1
+        if self.merge_method == 'sum':
+            x = 0.20 * (warped_x1 + warped_x2 + warped_x3 + warped_x4 + warped_x5)
+        elif self.merge_method == 'concat':
+            x = torch.cat((warped_x1, warped_x2, warped_x3, warped_x4, warped_x5), dim=1)
+        else:
+            raise NotImplementedError(f'merging {self.merge_method} is not implemented')
 
         #### backwards
         if self.cycle_consistency_finetune:
@@ -441,7 +462,12 @@ class ResnetGeneratorWarp(nn.Module):
 
         ###############
 
-        return self.tanh(x)  # self.model_final(x) ## return x for 3 channel warping
+        if self.final_conv:
+            x = self.model_final2(x)
+        else:
+            x = self.tanh(x)
+
+        return x  # self.model_final(x) ## return x for 3 channel warping
 
 
 class BasicBlock(nn.Module):

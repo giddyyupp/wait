@@ -40,6 +40,8 @@ class BaseOptions():
         parser.add_argument('--norm_warp', type=str, default='instance', help='instance normalization or batch normalization for warp models')
         parser.add_argument('--use_warp_speed_ups', action='store_true', help='if true, makes use of ordered flags in warp models, otherwise not')
         parser.add_argument('--rec_bug_fix', action='store_true', help='if true, fixes the order of realA images, otherwise not')
+        parser.add_argument('--merge_method', default='sum', help='merge method for deform layers sum | concat')
+        parser.add_argument('--final_conv', action='store_true', help='use a final conv layer')
         parser.add_argument('--serial_batches', action='store_true', help='if true, takes images in order to make batches, otherwise takes them randomly')
         parser.add_argument('--no_dropout',  default=False, help='no dropout for the generator')
         parser.add_argument('--max_dataset_size', type=int, default=float("inf"), help='Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.')
