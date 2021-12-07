@@ -17,6 +17,12 @@ mkdir -p ${res_folder}/test_110/fake && cp ${res_folder}/test_110/images/*_fake_
 mkdir -p ${res_folder}/test_120/fake && cp ${res_folder}/test_120/images/*_fake_B_1.png ${res_folder}/test_120/fake/
 mkdir -p ${res_folder}/test_130/fake && cp ${res_folder}/test_130/images/*_fake_B_1.png ${res_folder}/test_130/fake/
 mkdir -p ${res_folder}/test_140/fake && cp ${res_folder}/test_140/images/*_fake_B_1.png ${res_folder}/test_140/fake/
+mkdir -p ${res_folder}/test_150/fake && cp ${res_folder}/test_150/images/*_fake_B_1.png ${res_folder}/test_150/fake/
+mkdir -p ${res_folder}/test_160/fake && cp ${res_folder}/test_160/images/*_fake_B_1.png ${res_folder}/test_160/fake/
+mkdir -p ${res_folder}/test_170/fake && cp ${res_folder}/test_170/images/*_fake_B_1.png ${res_folder}/test_170/fake/
+mkdir -p ${res_folder}/test_180/fake && cp ${res_folder}/test_180/images/*_fake_B_1.png ${res_folder}/test_180/fake/
+mkdir -p ${res_folder}/test_190/fake && cp ${res_folder}/test_190/images/*_fake_B_1.png ${res_folder}/test_190/fake/
+mkdir -p ${res_folder}/test_200/fake && cp ${res_folder}/test_200/images/*_fake_B_1.png ${res_folder}/test_200/fake/
 
 else
 

@@ -10,6 +10,7 @@ then
 
 echo "Test Model: Axel"
 # axel
+python test.py --dataroot ${dataset_dir} --name ${exp_id} --model cycle_gan --netG ${gen_type} --centerCropSize 800 --resize_or_crop center_crop --no_flip --phase test --epoch 150
 python test.py --dataroot ${dataset_dir} --name ${exp_id} --model cycle_gan --netG ${gen_type} --centerCropSize 800 --resize_or_crop center_crop --no_flip --phase test --epoch 140
 python test.py --dataroot ${dataset_dir} --name ${exp_id} --model cycle_gan --netG ${gen_type} --centerCropSize 800 --resize_or_crop center_crop --no_flip --phase test --epoch 130
 python test.py --dataroot ${dataset_dir} --name ${exp_id} --model cycle_gan --netG ${gen_type} --centerCropSize 800 --resize_or_crop center_crop --no_flip --phase test --epoch 120
