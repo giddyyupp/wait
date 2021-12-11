@@ -31,6 +31,7 @@ class UnalignedDataset(BaseDataset):
         A_1_path = self.A_paths[index % self.A_size]
 
         random_index = random.randint(index - self.opt.time_gap, index + self.opt.time_gap)
+        print(f"1st index: {index}, 2nd index:{random_index}")
         if random_index < 0 or random_index >= self.A_size:
             A_2_path = self.A_paths[index % self.A_size]
         else:
