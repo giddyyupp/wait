@@ -92,7 +92,7 @@ class UnalignedDataset(BaseDataset):
         A_2 = self.transform(A2_img)
         B = self.transform_B(B_img)
         if self.opt.optical_flow:
-            Flow = self.transform_flow(Flow_img)
+            Flow = self.transform_flow(Flow_img.copy())
         else:
             Flow = A_1 - A_2  # if optical flow is not selected then use diff image
 
