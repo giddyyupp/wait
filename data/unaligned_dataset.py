@@ -73,12 +73,14 @@ class UnalignedDataset(BaseDataset):
 
         if self.opt.optical_flow:
             Flow_img = np.load(Flow_path)
+            Flow_img = Image.fromarray(Flow_img)
+            print(Flow_img)
 
         if not self.opt.no_flip and random.random() < 0.5:
             A2_img = A2_img.transpose(Image.FLIP_LEFT_RIGHT)
             A1_img = A1_img.transpose(Image.FLIP_LEFT_RIGHT)
             if self.opt.optical_flow:
-                Flow_img = np.flip(Flow_img, 1)
+                Flow_img = Flow_img.transpose(Image.FLIP_LEFT_RIGHT)  # np.flip(Flow_img, 1)
 
         if not self.opt.no_flip and random.random() < 0.5:
             B_img = B_img.transpose(Image.FLIP_LEFT_RIGHT)
