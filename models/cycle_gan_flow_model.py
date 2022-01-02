@@ -71,7 +71,7 @@ class CycleGANFlowModel(BaseModel):
             self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan).to(self.device)
             self.criterionCycle = torch.nn.L1Loss()
             self.criterionIdt = torch.nn.L1Loss()
-            self.criterionOpFlow = torch.nn.MSELoss()
+            self.criterionOpFlow = torch.nn.L1Loss()
             # initialize optimizers
             self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()),
                                                 lr=opt.lr, betas=(opt.beta1, 0.999))
@@ -100,7 +100,7 @@ class CycleGANFlowModel(BaseModel):
             self.warped_fake_B_1 = optical_flow_warp(self.fake_B_2, self.real_flow)
             # reconstruction
             self.rec_A_1 = self.netG_B(self.fake_B_1)
-            self.rec_A_2 = self.netG_B(self.fake_B_2)
+            # self.rec_A_2 = self.netG_B(self.fake_B_2)
             self.fake_A = self.netG_B(self.real_B)
             self.rec_B = self.netG_A(self.fake_A)
 
@@ -119,9 +119,9 @@ class CycleGANFlowModel(BaseModel):
 
     def backward_D_A(self):
         fake_B_1 = self.fake_B_pool.query(self.fake_B_1)
-        fake_B_2 = self.fake_B_pool.query(self.fake_B_2)
+        # fake_B_2 = self.fake_B_pool.query(self.fake_B_2)
         self.loss_D_A_1 = self.backward_D_basic(self.netD_A, self.real_B, fake_B_1)
-        self.loss_D_A_2 = self.backward_D_basic(self.netD_A, self.real_B, fake_B_2)
+        # self.loss_D_A_2 = self.backward_D_basic(self.netD_A, self.real_B, fake_B_2)
 
     def backward_D_B(self):
         fake_A = self.fake_A_pool.query(self.fake_A)
@@ -148,14 +148,14 @@ class CycleGANFlowModel(BaseModel):
 
         # GAN loss D_A(G_A(A_1))
         self.loss_G_A_1 = self.criterionGAN(self.netD_A(self.fake_B_1), True)
-        self.loss_G_A_2 = self.criterionGAN(self.netD_A(self.fake_B_2), True)
+        # self.loss_G_A_2 = self.criterionGAN(self.netD_A(self.fake_B_2), True)
 
         # GAN loss D_B(G_B(B))
         self.loss_G_B = self.criterionGAN(self.netD_B(self.fake_A), True)
 
         # Forward cycle loss A_1
         self.loss_cycle_A_1 = self.criterionCycle(self.rec_A_1, self.real_A_1) * lambda_A
-        self.loss_cycle_A_2 = self.criterionCycle(self.rec_A_2, self.real_A_2) * lambda_A
+        # self.loss_cycle_A_2 = self.criterionCycle(self.rec_A_2, self.real_A_2) * lambda_A
 
         # Backward cycle loss
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
@@ -163,8 +163,8 @@ class CycleGANFlowModel(BaseModel):
         # OpFlow Loss
         self.loss_opflow = self.criterionOpFlow(self.fake_B_1, self.warped_fake_B_1)
         # combined loss
-        self.loss_G = self.loss_G_A_1 + self.loss_G_A_2 + self.loss_G_B + \
-                      self.loss_cycle_A_1 + self.loss_cycle_A_2 + self.loss_cycle_B + \
+        self.loss_G = self.loss_G_A_1 + self.loss_G_B + \
+                      self.loss_cycle_A_1 + self.loss_cycle_B + \
                       self.loss_idt_A + self.loss_idt_B_1 + self.loss_opflow
 
         self.loss_G.backward()
