@@ -37,6 +37,9 @@ class UnalignedDataset(BaseDataset):
             print(self.A_paths)
             print(self.B_paths)
             print(self.Flow_paths)
+            print(self.A_size)
+            print(self.B_size)
+            print(self.Flow_size)
 
     def __getitem__(self, index):
         # get paths
