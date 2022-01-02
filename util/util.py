@@ -58,3 +58,25 @@ def mkdirs(paths):
 def mkdir(path):
     if not os.path.exists(path):
         os.makedirs(path)
+
+
+def convert_png_dataset(old_path, new_path):
+    import cv2
+    os.makedirs(new_path, exist_ok=True)
+    conv_folders = ['trainA', 'testA']
+    for ff in conv_folders:
+        os.makedirs(os.path.join(new_path, ff), exist_ok=True)
+        im_files = os.listdir(os.path.join(old_path, ff))
+        im_files_sorted = sorted(im_files, key=lambda x: int(x.split('.')[0].split('_')[1]))
+        print(im_files_sorted)
+        for f in im_files_sorted:
+            # now convert to jpg
+            im_data = cv2.imread(os.path.join(old_path, ff, f))
+            # create new formatted name
+            im_name = f"{int(f.split('.')[0].split('_')[1]):06}.jpg"
+            cv2.imwrite(os.path.join(new_path, ff, im_name), im_data)
+
+
+# old = '/truba/home/shicsonmez/senior/datasets/axel'
+# neww = '/truba/home/shicsonmez/senior/datasets/axel_jpg'
+# convert_png_dataset(old, neww)

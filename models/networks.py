@@ -86,7 +86,7 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', norm_warp=None, merge
     if norm_warp:
         norm_layer_warp = get_norm_layer(norm_type=norm_warp)
 
-    if netG == 'resnet_9blocks':
+    if netG in ['resnet_9blocks', 'resnet_9blocks_flow']:
         net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
     elif netG == 'resnet_9blocks_warp':
         net = ResnetGeneratorWarp(input_nc, output_nc, ngf, norm_layer=norm_layer, norm_warp=norm_layer_warp,

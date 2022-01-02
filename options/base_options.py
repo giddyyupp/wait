@@ -32,7 +32,7 @@ class BaseOptions():
         parser.add_argument('--dataset_mode', type=str, default='unaligned',
                             help='chooses how datasets are loaded. [unaligned | aligned | single]')
         parser.add_argument('--model', type=str, default='cycle_gan_warp',
-                            help='chooses which model to use. cycle_gan, cycle_gan_warp, cycle_gan_hough, pix2pix, test')
+                            help='chooses which model to use. cycle_gan, cycle_gan_warp, cycle_gan_hough, cycle_gan_flow, pix2pix, test')
         parser.add_argument('--direction', type=str, default='AtoB', help='AtoB or BtoA')
         parser.add_argument('--epoch', type=str, default='100', help='which epoch to load? set to latest to use latest cached model')
         parser.add_argument('--num_threads', default=8, type=int, help='# threads for loading data')
@@ -52,6 +52,7 @@ class BaseOptions():
         parser.add_argument('--verbose', action='store_true', help='if specified, print more debugging information')
         parser.add_argument('--suffix', default='', type=str, help='customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{loadSize}')
         parser.add_argument('--time_gap', default=2, type=int, help='interval of random time-gaps')
+        parser.add_argument('--optical_flow', action='store_true', help='use optical flow')
         self.initialized = True
         return parser
 

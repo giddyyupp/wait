@@ -1,8 +1,9 @@
 import os.path
-from data.base_dataset import BaseDataset, get_transform, get_transform_B
+from data.base_dataset import BaseDataset, get_transform, get_transform_B, get_transform_flow
 from data.image_folder import make_dataset
 from PIL import Image, ImageChops
 import random
+import numpy as np
 
 
 class UnalignedDataset(BaseDataset):
@@ -26,16 +27,32 @@ class UnalignedDataset(BaseDataset):
         self.transform = get_transform(opt)
         self.transform_B = get_transform_B(opt)
 
+        if opt.optical_flow:
+            self.A_size = len(self.A_paths) - 1
+            self.flow_dir = os.path.join(opt.dataroot, 'flow')
+            self.Flow_paths = make_dataset(self.flow_dir)
+            self.Flow_paths = sorted(self.Flow_paths)
+            self.transform_flow = get_transform_flow(opt)
+            self.Flow_size = len(self.Flow_paths)
+
     def __getitem__(self, index):
         # get paths
         A_1_path = self.A_paths[index % self.A_size]
 
-        random_index = random.randint(index - self.opt.time_gap, index + self.opt.time_gap)
+        if self.opt.optical_flow:
+            random_index = index + 1
+        else:
+            random_index = random.randint(index - self.opt.time_gap, index + self.opt.time_gap)
+
         print(f"1st index: {index}, 2nd index:{random_index}")
+
         if random_index < 0 or random_index >= self.A_size:
             A_2_path = self.A_paths[index % self.A_size]
         else:
             A_2_path = self.A_paths[random_index % self.A_size]
+
+        if self.opt.optical_flow:
+            Flow_path = self.Flow_paths[index % self.A_size]
 
         if self.opt.serial_batches:
             index_B = index % self.B_size
@@ -46,12 +63,16 @@ class UnalignedDataset(BaseDataset):
         # open images
         A1_img = Image.open(A_1_path).convert('RGB')
         A2_img = Image.open(A_2_path).convert('RGB')
-        # A3_img = ImageChops.difference(A1_img, A2_img)
         B_img = Image.open(B_path).convert('RGB')
 
+        if self.opt.optical_flow:
+            Flow_img = np.load(Flow_path)
+
         if not self.opt.no_flip and random.random() < 0.5:
-            A1_img = A1_img.transpose(Image.FLIP_LEFT_RIGHT)
             A2_img = A2_img.transpose(Image.FLIP_LEFT_RIGHT)
+            A1_img = A1_img.transpose(Image.FLIP_LEFT_RIGHT)
+            if self.opt.optical_flow:
+                Flow_img = np.flip(Flow_img, 1)
 
         if not self.opt.no_flip and random.random() < 0.5:
             B_img = B_img.transpose(Image.FLIP_LEFT_RIGHT)
@@ -59,8 +80,11 @@ class UnalignedDataset(BaseDataset):
         # transform images
         A_1 = self.transform(A1_img)
         A_2 = self.transform(A2_img)
-        A_3 = A_1 - A_2
         B = self.transform_B(B_img)
+        if self.opt.optical_flow:
+            Flow = self.transform_flow(Flow_img)
+        else:
+            Flow = A_1 - A_2  # if optical flow is not selected then use diff image
 
         if self.opt.direction == 'BtoA':
             input_nc = self.opt.output_nc
@@ -77,7 +101,7 @@ class UnalignedDataset(BaseDataset):
             tmp = B[0, ...] * 0.299 + B[1, ...] * 0.587 + B[2, ...] * 0.114
             B = tmp.unsqueeze(0)
 
-        return {'A': [A_1, A_2, A_3], 'B': B,
+        return {'A': [A_1, A_2, Flow], 'B': B,
                 'A_paths': [A_1_path, A_2_path], 'B_paths': B_path}
 
     def __len__(self):

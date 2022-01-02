@@ -89,6 +89,36 @@ def get_transform_B(opt):
                                             (0.5, 0.5, 0.5))]
     return transforms.Compose(transform_list)
 
+
+def get_transform_flow(opt):
+    transform_list = []
+    if opt.resize_or_crop == 'resize_and_crop':
+        osize = [opt.loadSize, opt.loadSize]
+        transform_list.append(transforms.Resize(osize, Image.BICUBIC))
+        transform_list.append(transforms.RandomCrop(opt.fineSize))
+    elif opt.resize_or_crop == 'crop':
+        transform_list.append(transforms.RandomCrop(opt.fineSize))
+    elif opt.resize_or_crop == 'center_crop':
+        osize = [opt.loadSize, opt.loadSize]
+        transform_list.append(transforms.Resize(osize, Image.BICUBIC))
+        transform_list.append(transforms.CenterCrop(opt.fineSize))
+    elif opt.resize_or_crop == 'scale_width':
+        transform_list.append(transforms.Lambda(
+            lambda img: __scale_width(img, opt.fineSize)))
+    elif opt.resize_or_crop == 'scale_width_and_crop':
+        transform_list.append(transforms.Lambda(
+            lambda img: __scale_width(img, opt.loadSize)))
+        transform_list.append(transforms.RandomCrop(opt.fineSize))
+    elif opt.resize_or_crop == 'none':
+        transform_list.append(transforms.Lambda(
+            lambda img: __adjust(img)))
+    else:
+        raise ValueError('--resize_or_crop %s is not a valid option.' % opt.resize_or_crop)
+
+    transform_list += [transforms.ToTensor()]
+    return transforms.Compose(transform_list)
+
+
 # just modify the width and height to be multiple of 4
 def __adjust(img):
     ow, oh = img.size

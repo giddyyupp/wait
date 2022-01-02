@@ -1,13 +1,14 @@
 import torch
 import itertools
 from util.image_pool import ImagePool
+from util.flow_warp import optical_flow_warp
 from .base_model import BaseModel
 from . import networks
 
 
-class CycleGANWarpModel(BaseModel):
+class CycleGANFlowModel(BaseModel):
     def name(self):
-        return 'CycleGANWarpModel'
+        return 'CycleGANFlowModel'
 
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
@@ -73,6 +74,7 @@ class CycleGANWarpModel(BaseModel):
             self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan).to(self.device)
             self.criterionCycle = torch.nn.L1Loss()
             self.criterionIdt = torch.nn.L1Loss()
+            self.criterionOpFlow = torch.nn.MSELoss()
             # initialize optimizers
             self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()),
                                                 lr=opt.lr, betas=(opt.beta1, 0.999))
@@ -86,27 +88,24 @@ class CycleGANWarpModel(BaseModel):
         AtoB = self.opt.direction == 'AtoB'
         self.real_A_1 = input['A' if AtoB else 'B'][0].to(self.device)
         self.real_A_2 = input['A' if AtoB else 'B'][1].to(self.device)
-        # self.real_A_3 = input['A' if AtoB else 'B'][2].to(self.device)
+        self.real_flow = input['A' if AtoB else 'B'][2].to(self.device)
         self.real_B = input['B' if AtoB else 'A'].to(self.device)
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
         self.epoch = epoch
 
     def forward(self):
 
-        if self.rec_bug_fix:
-            self.fake_B_1 = self.netG_A(torch.cat((self.real_A_2, self.real_A_1), 1), ordered=True)
-        else:
-            self.fake_B_1 = self.netG_A(torch.cat((self.real_A_1, self.real_A_2), 1), ordered=True)
+        self.fake_B_1 = self.netG_A(self.real_A_1)
 
         if self.isTrain:
-            if self.ordered:
-                self.rec_A_1 = self.netG_B(torch.cat((self.fake_B_1, self.fake_B_1), 1), ordered=self.ordered)
-                self.fake_A = self.netG_B(torch.cat((self.real_B, self.real_B), 1), ordered=self.ordered)
-                self.rec_B = self.netG_A(torch.cat((self.fake_A, self.fake_A), 1), ordered=self.ordered)
-            else:
-                self.rec_A_1 = self.netG_B(self.fake_B_1, ordered=self.ordered)
-                self.fake_A = self.netG_B(self.real_B, ordered=self.ordered)
-                self.rec_B = self.netG_A(self.fake_A, ordered=self.ordered)
+            self.fake_B_2 = self.netG_A(self.real_A_2)
+            # here flow warping
+            self.warped_fake_B_1 = optical_flow_warp(self.fake_B_2, self.real_flow)
+            # reconstruction
+            self.rec_A_1 = self.netG_B(self.fake_B_1, ordered=self.ordered)
+            self.rec_A_2 = self.netG_B(self.fake_B_2, ordered=self.ordered)
+            self.fake_A = self.netG_B(self.real_B, ordered=self.ordered)
+            self.rec_B = self.netG_A(self.fake_A, ordered=self.ordered)
 
     def backward_D_basic(self, netD, real, fake):
         # Real
@@ -123,7 +122,9 @@ class CycleGANWarpModel(BaseModel):
 
     def backward_D_A(self):
         fake_B_1 = self.fake_B_pool.query(self.fake_B_1)
+        fake_B_2 = self.fake_B_pool.query(self.fake_B_2)
         self.loss_D_A_1 = self.backward_D_basic(self.netD_A, self.real_B, fake_B_1)
+        self.loss_D_A_2 = self.backward_D_basic(self.netD_A, self.real_B, fake_B_2)
 
     def backward_D_B(self):
         fake_A = self.fake_A_pool.query(self.fake_A)
@@ -153,20 +154,24 @@ class CycleGANWarpModel(BaseModel):
 
         # GAN loss D_A(G_A(A_1))
         self.loss_G_A_1 = self.criterionGAN(self.netD_A(self.fake_B_1), True)
+        self.loss_G_A_2 = self.criterionGAN(self.netD_A(self.fake_B_2), True)
 
         # GAN loss D_B(G_B(B))
         self.loss_G_B = self.criterionGAN(self.netD_B(self.fake_A), True)
 
         # Forward cycle loss A_1
         self.loss_cycle_A_1 = self.criterionCycle(self.rec_A_1, self.real_A_1) * lambda_A
+        self.loss_cycle_A_2 = self.criterionCycle(self.rec_A_2, self.real_A_2) * lambda_A
 
         # Backward cycle loss
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
 
+        # OpFlow Loss
+        self.loss_opflow = self.criterionOpFlow(self.fake_B_1, self.warped_fake_B_1)
         # combined loss
-        self.loss_G = self.loss_G_A_1 + self.loss_G_B + \
-                      self.loss_cycle_A_1 + self.loss_cycle_B + \
-                      self.loss_idt_A + self.loss_idt_B_1
+        self.loss_G = self.loss_G_A_1 + self.loss_G_A_2 + self.loss_G_B + \
+                      self.loss_cycle_A_1 + self.loss_cycle_A_2 + self.loss_cycle_B + \
+                      self.loss_idt_A + self.loss_idt_B_1 + self.loss_opflow
 
         self.loss_G.backward()
 
