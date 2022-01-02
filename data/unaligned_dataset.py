@@ -34,6 +34,9 @@ class UnalignedDataset(BaseDataset):
             self.Flow_paths = sorted(self.Flow_paths)
             self.transform_flow = get_transform_flow(opt)
             self.Flow_size = len(self.Flow_paths)
+            print(self.A_paths)
+            print(self.B_paths)
+            print(self.Flow_paths)
 
     def __getitem__(self, index):
         # get paths
