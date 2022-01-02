@@ -24,9 +24,6 @@ class CycleGANFlowModel(BaseModel):
     def initialize(self, opt):
         BaseModel.initialize(self, opt)
 
-        self.ordered = not opt.use_warp_speed_ups
-        self.rec_bug_fix = opt.rec_bug_fix
-
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
         self.loss_names = ['D_A_1', 'G_A_1', 'cycle_A_1',
                            'idt_A', 'D_B_1', 'G_B', 'cycle_B', 'idt_B_1']
@@ -102,10 +99,10 @@ class CycleGANFlowModel(BaseModel):
             # here flow warping
             self.warped_fake_B_1 = optical_flow_warp(self.fake_B_2, self.real_flow)
             # reconstruction
-            self.rec_A_1 = self.netG_B(self.fake_B_1, ordered=self.ordered)
-            self.rec_A_2 = self.netG_B(self.fake_B_2, ordered=self.ordered)
-            self.fake_A = self.netG_B(self.real_B, ordered=self.ordered)
-            self.rec_B = self.netG_A(self.fake_A, ordered=self.ordered)
+            self.rec_A_1 = self.netG_B(self.fake_B_1)
+            self.rec_A_2 = self.netG_B(self.fake_B_2)
+            self.fake_A = self.netG_B(self.real_B)
+            self.rec_B = self.netG_A(self.fake_A)
 
     def backward_D_basic(self, netD, real, fake):
         # Real
@@ -138,12 +135,9 @@ class CycleGANFlowModel(BaseModel):
         # Identity loss
         if lambda_idt > 0:
             # G_A should be identity if real_B is fed.
-            if self.ordered:
-                self.idt_A = self.netG_A(torch.cat((self.real_B, self.real_B), 1), ordered=self.ordered)
-                self.idt_B_1 = self.netG_B(torch.cat((self.real_A_1, self.real_A_1), 1), ordered=self.ordered)
-            else:
-                self.idt_A = self.netG_A(self.real_B, ordered=self.ordered)
-                self.idt_B_1 = self.netG_B(self.real_A_1, ordered=self.ordered)
+
+            self.idt_A = self.netG_A(self.real_B)
+            self.idt_B_1 = self.netG_B(self.real_A_1)
 
             self.loss_idt_A = self.criterionIdt(self.idt_A, self.real_B) * lambda_B * lambda_idt
             # G_B should be identity if real_A is fed.
