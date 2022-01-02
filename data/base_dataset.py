@@ -92,6 +92,7 @@ def get_transform_B(opt):
 
 def get_transform_flow(opt):
     transform_list = []
+    transform_list += [transforms.ToTensor()]
     if opt.resize_or_crop == 'resize_and_crop':
         osize = [opt.loadSize, opt.loadSize]
         transform_list.append(transforms.Resize(osize, Image.BICUBIC))
@@ -115,7 +116,6 @@ def get_transform_flow(opt):
     else:
         raise ValueError('--resize_or_crop %s is not a valid option.' % opt.resize_or_crop)
 
-    transform_list += [transforms.ToTensor()]
     return transforms.Compose(transform_list)
 
 
