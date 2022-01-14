@@ -27,6 +27,10 @@ def get_transform(opt):
         osize = [opt.loadSize, opt.loadSize]
         transform_list.append(transforms.Resize(osize, Image.BICUBIC))
         transform_list.append(transforms.RandomCrop(opt.fineSize))
+    elif opt.resize_or_crop == 'resize_and_centercrop':
+        osize = [opt.loadSize, opt.loadSize]
+        transform_list.append(transforms.Resize(osize, Image.BICUBIC))
+        transform_list.append(transforms.CenterCrop(opt.fineSize))
     elif opt.resize_or_crop == 'crop':
         transform_list.append(transforms.RandomCrop(opt.fineSize))
     elif opt.resize_or_crop == 'center_crop':
@@ -59,6 +63,10 @@ def get_transform(opt):
 def get_transform_B(opt):
     transform_list = []
     if opt.resize_or_crop == 'resize_and_crop':
+        osize = [opt.loadSize, opt.loadSize]
+        transform_list.append(transforms.Resize(osize, Image.BICUBIC))
+        transform_list.append(transforms.RandomCrop(opt.fineSize))
+    elif opt.resize_or_crop == 'resize_and_centercrop':
         osize = [opt.loadSize, opt.loadSize]
         transform_list.append(transforms.Resize(osize, Image.BICUBIC))
         transform_list.append(transforms.RandomCrop(opt.fineSize))
@@ -98,6 +106,10 @@ def get_transform_flow(opt):
         osize = [opt.loadSize, opt.loadSize]
         transform_list.append(transforms.Resize(osize, Image.BICUBIC))
         transform_list.append(transforms.RandomCrop(opt.fineSize))
+    elif opt.resize_or_crop == 'resize_and_centercrop':
+        osize = [opt.loadSize, opt.loadSize]
+        transform_list.append(transforms.Resize(osize, Image.BICUBIC))
+        transform_list.append(transforms.CenterCrop(opt.fineSize))
     elif opt.resize_or_crop == 'crop':
         transform_list.append(transforms.RandomCrop(opt.fineSize))
     elif opt.resize_or_crop == 'center_crop':
