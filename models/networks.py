@@ -310,7 +310,7 @@ class ResnetGeneratorWarp(nn.Module):
             if self.merge_method == 'sum':
                 self.final_depth = k
             elif self.merge_method == 'concat':
-                self.final_depth = k*5
+                self.final_depth = k * self.warp_layer_cnt
             else:
                 self.final_depth = k
 
