@@ -42,6 +42,8 @@ class BaseOptions():
         parser.add_argument('--rec_bug_fix', action='store_true', help='if true, fixes the order of realA images, otherwise not')
         parser.add_argument('--merge_method', default='sum', help='merge method for deform layers sum | concat')
         parser.add_argument('--final_conv', action='store_true', help='use a final conv layer')
+        parser.add_argument('--offset_network_block_cnt', default=8, type=int, help='# basic blocks for offset network')
+        parser.add_argument('--warp_layer_cnt', default=5, type=int, help='# parallel warp layers')
         parser.add_argument('--serial_batches', action='store_true', help='if true, takes images in order to make batches, otherwise takes them randomly')
         parser.add_argument('--no_dropout',  default=False, help='no dropout for the generator')
         parser.add_argument('--max_dataset_size', type=int, default=float("inf"), help='Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.')

@@ -79,8 +79,9 @@ def init_net(net, init_type='normal', init_gain=0.02, gpu_ids=[]):
     return net
 
 
-def define_G(input_nc, output_nc, ngf, netG, norm='batch', norm_warp=None, merge_method='sum', final_conv=False, use_dropout=False, init_type='normal',
-             init_gain=0.02, gpu_ids=[], depth=18, fpn_weights=[1.0, 1.0, 1.0, 1.0]):
+def define_G(input_nc, output_nc, ngf, netG, norm='batch', norm_warp=None, merge_method='sum', final_conv=False,
+             offset_network_block_cnt=8, warp_layer_cnt=5, use_dropout=False, init_type='normal', init_gain=0.02,
+             gpu_ids=[], depth=18, fpn_weights=[1.0, 1.0, 1.0, 1.0]):
     net = None
     norm_layer = get_norm_layer(norm_type=norm)
     if norm_warp:
@@ -90,7 +91,8 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', norm_warp=None, merge
         net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
     elif netG == 'resnet_9blocks_warp':
         net = ResnetGeneratorWarp(input_nc, output_nc, ngf, norm_layer=norm_layer, norm_warp=norm_layer_warp,
-                                  merge_method=merge_method, final_conv=final_conv, use_dropout=use_dropout, n_blocks=9)
+                                  merge_method=merge_method, final_conv=final_conv, use_dropout=use_dropout, n_blocks=9,
+                                  offset_network_block_cnt=offset_network_block_cnt, warp_layer_cnt=warp_layer_cnt)
     elif netG == 'resnet_9blocks_hough':
         net = ResnetGeneratorHough(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
     elif netG == 'resnet_6blocks':
@@ -217,10 +219,12 @@ class ResnetGenerator(nn.Module):
 # Feature Warping
 class ResnetGeneratorWarp(nn.Module):
     def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, norm_warp=nn.BatchNorm2d,
-                 merge_method='sum', final_conv=False, use_dropout=False, n_blocks=6, padding_type='reflect'):
+                 merge_method='sum', final_conv=False, use_dropout=False, n_blocks=6, padding_type='reflect',
+                 offset_network_block_cnt=8, warp_layer_cnt=5):
         assert (n_blocks >= 0)
         super(ResnetGeneratorWarp, self).__init__()
-        self.block_count = 8
+        self.offset_network_block_cnt = offset_network_block_cnt
+        self.warp_layer_cnt = warp_layer_cnt
         self.cycle_consistency_finetune = False
         self.warping_reverse = False
 
@@ -269,21 +273,30 @@ class ResnetGeneratorWarp(nn.Module):
         inner_ch = 3  # feature:64, image:3
 
         self.offset_feats = self._compute_chain_of_basic_blocks(warp_out, inner_ch, 1, 1, 2,
-                                                                warp_out, self.block_count).cuda()
+                                                                warp_out, self.offset_network_block_cnt).cuda()
 
-        #### Offsets
-        self.offsets1 = self._single_conv(inner_ch, k, k, 3, warp_out).cuda()
-        self.offsets2 = self._single_conv(inner_ch, k, k, 6, warp_out).cuda()
-        self.offsets3 = self._single_conv(inner_ch, k, k, 12, warp_out).cuda()
-        self.offsets4 = self._single_conv(inner_ch, k, k, 18, warp_out).cuda()
-        self.offsets5 = self._single_conv(inner_ch, k, k, 24, warp_out).cuda()
+        # Offsets
+        self.offset_deconv_resolutions = [3, 6, 12, 18, 24]
+        self.offset_layers = []
+        self.deform_layers = []
+        for i in range(self.warp_layer_cnt):
+            self.offset_layers.append(self._single_conv(inner_ch, k, k,
+                                                        self.offset_deconv_resolutions[i], warp_out).cuda())
+            # self.offsets1 = self._single_conv(inner_ch, k, k, 3, warp_out).cuda()
+            # self.offsets2 = self._single_conv(inner_ch, k, k, 6, warp_out).cuda()
+            # self.offsets3 = self._single_conv(inner_ch, k, k, 12, warp_out).cuda()
+            # self.offsets4 = self._single_conv(inner_ch, k, k, 18, warp_out).cuda()
+            # self.offsets5 = self._single_conv(inner_ch, k, k, 24, warp_out).cuda()
 
-        #### Deformable Conv
-        self.deform_conv1 = self._deform_conv(warp_out, k, k, 3, warp_out).cuda()
-        self.deform_conv2 = self._deform_conv(warp_out, k, k, 6, warp_out).cuda()
-        self.deform_conv3 = self._deform_conv(warp_out, k, k, 12, warp_out).cuda()
-        self.deform_conv4 = self._deform_conv(warp_out, k, k, 18, warp_out).cuda()
-        self.deform_conv5 = self._deform_conv(warp_out, k, k, 24, warp_out).cuda()
+        # Deformable Conv
+        for i in range(self.warp_layer_cnt):
+            self.deform_layers.append(self._deform_conv(warp_out, k, k,
+                                                        self.offset_deconv_resolutions[i], warp_out).cuda())
+        # self.deform_conv1 = self._deform_conv(warp_out, k, k, 3, warp_out).cuda()
+        # self.deform_conv2 = self._deform_conv(warp_out, k, k, 6, warp_out).cuda()
+        # self.deform_conv3 = self._deform_conv(warp_out, k, k, 12, warp_out).cuda()
+        # self.deform_conv4 = self._deform_conv(warp_out, k, k, 18, warp_out).cuda()
+        # self.deform_conv5 = self._deform_conv(warp_out, k, k, 24, warp_out).cuda()
 
         model_final = [nn.ReflectionPad2d(3)]
         model_final += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
@@ -295,14 +308,14 @@ class ResnetGeneratorWarp(nn.Module):
 
         if self.final_conv:
             if self.merge_method == 'sum':
-                final_depth = k
+                self.final_depth = k
             elif self.merge_method == 'concat':
-                final_depth = k*5
+                self.final_depth = k*5
             else:
-                final_depth = k
+                self.final_depth = k
 
             model_final2 = [nn.ReflectionPad2d(3)]
-            model_final2 += [nn.Conv2d(final_depth, output_nc, kernel_size=7, padding=0)]
+            model_final2 += [nn.Conv2d(self.final_depth, output_nc, kernel_size=7, padding=0)]
             model_final2 += [nn.Tanh()]
             self.model_final2 = nn.Sequential(*model_final2)
 
@@ -414,26 +427,31 @@ class ResnetGeneratorWarp(nn.Module):
             sup_x_cuda = sup_x.cuda()
 
         #########
+        warped_outs = []
+        for i in range(self.warp_layer_cnt):
+            off = self.offset_layers[i](off_feats_cuda)
+            warped_x = self.deform_layers[i](sup_x_cuda.contiguous(), off.contiguous())
+            warped_outs.append(warped_x)
 
-        off1 = self.offsets1(off_feats_cuda)
-        warped_x1 = self.deform_conv1(sup_x_cuda.contiguous(), off1.contiguous())
-
-        off2 = self.offsets2(off_feats_cuda)
-        warped_x2 = self.deform_conv2(sup_x_cuda.contiguous(), off2.contiguous())
-        
-        off3 = self.offsets3(off_feats_cuda)
-        warped_x3 = self.deform_conv3(sup_x_cuda.contiguous(), off3.contiguous())
-        
-        off4 = self.offsets4(off_feats_cuda)
-        warped_x4 = self.deform_conv4(sup_x_cuda.contiguous(), off4.contiguous())
-        
-        off5 = self.offsets5(off_feats_cuda)
-        warped_x5 = self.deform_conv5(sup_x_cuda.contiguous(), off5.contiguous())
+        # off1 = self.offsets1(off_feats_cuda)
+        # warped_x1 = self.deform_conv1(sup_x_cuda.contiguous(), off1.contiguous())
+        #
+        # off2 = self.offsets2(off_feats_cuda)
+        # warped_x2 = self.deform_conv2(sup_x_cuda.contiguous(), off2.contiguous())
+        #
+        # off3 = self.offsets3(off_feats_cuda)
+        # warped_x3 = self.deform_conv3(sup_x_cuda.contiguous(), off3.contiguous())
+        #
+        # off4 = self.offsets4(off_feats_cuda)
+        # warped_x4 = self.deform_conv4(sup_x_cuda.contiguous(), off4.contiguous())
+        #
+        # off5 = self.offsets5(off_feats_cuda)
+        # warped_x5 = self.deform_conv5(sup_x_cuda.contiguous(), off5.contiguous())
 
         if self.merge_method == 'sum':
-            x = 0.20 * (warped_x1 + warped_x2 + warped_x3 + warped_x4 + warped_x5)
+            x = torch.mean(torch.stack(warped_outs), dim=0)
         elif self.merge_method == 'concat':
-            x = torch.cat((warped_x1, warped_x2, warped_x3, warped_x4, warped_x5), dim=1)
+            x = torch.cat(warped_outs, dim=1)
         else:
             raise NotImplementedError(f'merging {self.merge_method} is not implemented')
 

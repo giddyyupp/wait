@@ -51,13 +51,13 @@ class CycleGANWarpModel(BaseModel):
         # The naming conversion is different from those used in the paper
         # Code (paper): G_A (G), G_B (F), D_A (D_Y), D_B (D_X)
         self.netG_A = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, f"{opt.netG}_warp", opt.norm,
-                                        opt.norm_warp, opt.merge_method, opt.final_conv,
-                                        not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids, depth=18,
-                                        fpn_weights=opt.fpn_weights)
+                                        opt.norm_warp, opt.merge_method, opt.final_conv, opt.offset_network_block_cnt,
+                                        opt.warp_layer_cnt, not opt.no_dropout, opt.init_type, opt.init_gain,
+                                        self.gpu_ids, depth=18, fpn_weights=opt.fpn_weights)
         self.netG_B = networks.define_G(opt.output_nc, opt.input_nc, opt.ngf, f"{opt.netG}_warp", opt.norm,
-                                        opt.norm_warp, opt.merge_method, opt.final_conv,
-                                        not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids, depth=18,
-                                        fpn_weights=opt.fpn_weights)
+                                        opt.norm_warp, opt.merge_method, opt.final_conv, opt.offset_network_block_cnt,
+                                        opt.warp_layer_cnt, not opt.no_dropout, opt.init_type, opt.init_gain,
+                                        self.gpu_ids, depth=18, fpn_weights=opt.fpn_weights)
 
         if self.isTrain:
             use_sigmoid = opt.no_lsgan
