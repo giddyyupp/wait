@@ -1,6 +1,8 @@
-torch>=0.4.0
-torchvision>=0.2.1
+torch==1.8.0
+torchvision==0.9.0
 dominate>=2.3.1
 visdom>=0.1.8.3
 scipy==1.1.0
 pillow
+pandas
+opencv-python

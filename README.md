@@ -1,12 +1,13 @@
-# GANILLA
+# WAIT
 
-We provide PyTorch implementation for: 
+We provide official PyTorch implementation for: 
 
-GANILLA: Generative Adversarial Networks for Image to Illustration Translation.
+WAIT: Feature Warping for Animation to Illustration video Translation using GANs
 
-[Paper](https://www.sciencedirect.com/science/article/pii/S0262885620300184)
-[Arxiv](https://arxiv.org/abs/2002.05638)
+[Arxiv](update!!)
 
+
+![WAIT teaser](docs/figs/BP_seq2_teaser.gif)
 
 **Dataset Stats:**
 
@@ -14,34 +15,38 @@ GANILLA: Generative Adversarial Networks for Image to Illustration Translation.
 
 **Sample Images:**
 
-![Ill images](docs/figs/ill_dataset.png)
+![Ill images](docs/figs/ill_animation_dataset.png)
 
 
-**GANILLA**:
+**WAIT**:
 
+Here we compare the WAIT results with baseline methods.
+From left the right; 
 
-**GANILLA results on the illustration dataset:**
+**Input, CycleGAN, OpticalFlowWarping, ReCycleGAN, ReCycleGANv2, WAIT** 
 
-![GANILLA results](docs/figs/ganilla_res.png)
+**WAIT results on AS Style:**
 
-**Comparison with other methods:**
+![WAIT video1](docs/figs/AS_seq1.gif)
 
-![comparison](docs/figs/sota_comp.png)
+![WAIT video2](docs/figs/AS_seq2.gif)
 
-**Style transfer using Miyazaki's anime images:**
+**WAIT results on BP Style:**
 
-![GANILLA miyazaki](docs/figs/miyazaki_res.png)
+![WAIT video1](docs/figs/BP_seq1.gif)
 
-**Ablation Experiments:**
+![WAIT video2](docs/figs/BP_seq2.gif)
 
-![GANILLA ablation](docs/figs/ablation_experiments.png)
 
 ## Prerequisites
 - Linux, macOS or Windows
-- Python 2 or 3
-- CPU or NVIDIA GPU + CUDA CuDNN
+- Python 3.6+
+- NVIDIA GPU
+- CUDA 11.1
+- CuDNN 8.0.5
 
 ## Getting Started
+
 ### Downloading Datasets
 Please refer to [datasets.md](docs/datasets.md) for details.
 
@@ -49,63 +54,87 @@ Please refer to [datasets.md](docs/datasets.md) for details.
 
 - Clone this repo:
 ```bash
-git clone https://github.com/giddyyupp/ganilla.git
-cd ganilla
+git clone https://github.com/giddyyupp/wait.git
+cd wait
 ```
 
-- Install PyTorch 0.4+ and torchvision from http://pytorch.org and other dependencies (e.g., [visdom](https://github.com/facebookresearch/visdom) and [dominate](https://github.com/Knio/dominate)). You can install all the dependencies by
+- Install PyTorch 1.5+ and torchvision from http://pytorch.org and other dependencies (e.g., [visdom](https://github.com/facebookresearch/visdom) and [dominate](https://github.com/Knio/dominate)). You can install all the dependencies by
 ```bash
 pip install -r requirements.txt
 ```
 
-- For Conda users, we include a script `./scripts/conda_deps.sh` to install PyTorch and other libraries.
+- Build Deformable Conv layers:
+```
+cd models/deform_conv
+python setup.py install develop
+```
+### WAIT Train & Test
 
-### GANILLA train/test
-- Download a GANILLA/CycleGAN dataset (e.g. maps):
+- Download a GANILLA illustrator dataset and corresponding animation movies (e.g. BP):
 
 ```bash
-bash ./datasets/download_cyclegan_dataset.sh maps
+bash ./datasets/download_wait_dataset.sh BP
 ```
 - Train a model:
-```bash
-#!./scripts/train_ganilla.sh
-python train.py --dataroot ./datasets/maps --name maps_cyclegan --model cycle_gan --netG resnet_fpn
 ```
-- To view training results and loss plots, run `python -m visdom.server` and click the URL http://localhost:8097. To see more intermediate results, check out `./checkpoints/maps_cyclegan/web/index.html`
+python train.py --dataroot ./datasets/bp_dataset --name bp_wait --model cycle_gan_warp --netG resnet_9blocks \ 
+--centerCropSize 256 --resize_or_crop resize_and_centercrop --batch_size 8 --lr 0.0008 --niter_decay 200 --verbose \ 
+--norm_warp "batch" --use_warp_speed_ups --rec_bug_fix --final_conv --merge_method "concat" --time_gap 5 \ 
+--offset_network_block_cnt 10 --warp_layer_cnt 5
+```
+- To view training results and loss plots, run `python -m visdom.server` and click the URL http://localhost:8097. 
+To see more intermediate results, check out `./checkpoints/maps_cyclegan/web/index.html`
+
 - Test the model:
 ```bash
-#!./scripts/test_cyclegan.sh
-python test.py --dataroot ./datasets/maps --name maps_cyclegan --model cycle_gan --netG resnet_fpn
+#!./scripts/test_warp_models.sh ./datasets/"$dataset" $EXP_ID $backbone $dataset --norm_warp "batch" --rec_bug_fix --use_warp_speed_ups --final_conv --merge_method "concat"
 ```
-The test results will be saved to a html file here: `./results/maps_cyclegan/latest_test/index.html`.
+or
+```
+python test.py --dataroot ./datasets/bp_dataset --name bp_wait --model cycle_gan_warp --netG resnet_9blocks \ 
+--centerCropSize 800 --resize_or_crop center_crop --no_flip --phase test --epoch 200 --time_gap 0 --norm_warp "batch" \
+--rec_bug_fix --final_conv --merge_method "concat"
+```
+
+The test results will be saved to a html file here: `./results/bp_wait/latest_test/index.html`.
+
+
+### Calculate Metrics
+
+- To calculate FID & MSE you can directly use our scripts in `scripts/metrics` directory.
+```
+cd scripts/metrics
+./calculate_FID_batch.sh path_to_source path_to_result
+```
+
+- To calculate FWE you need to install [this repo](https://github.com/phoenix104104/fast_blind_video_consistency) and 
+preprocess the dataset described as [here](https://github.com/phoenix104104/fast_blind_video_consistency#evaluation).
+
+We put 2 helper scripts in the `metrics/FWE` folder, just copy paste them to the main directory of the above repo.
+
+Now you can run `calculate_FWE.sh`. 
+
+- We also provide a single script to calculate all metrics in single run.
+
+```
+cd scripts/
+./calculate_metrics_all.sh path_to_wait_repo exp_name dataset_name path_to_fwe_repo
+```
 
 You can find more scripts at `scripts` directory.
 
-### Apply a pre-trained model (GANILLA)
-- You can download pretrained models using following [link](https://drive.google.com/drive/folders/1HT9JxGMk7L94OmIeV5fqrPBy-bVn1u9L?usp=sharing)
+### Apply a pre-trained model (WAIT)
+- You can download pretrained models using following [link](AAA)
 
-Put a pretrained model under `./checkpoints/{name}_pretrained/100_net_G.pth`.
-
-- To test the model, you also need to download the  monet2photo dataset and use trainB images as source:
-
-```bash
-bash ./datasets/download_cyclegan_dataset.sh monet2photo
-```
+Put a pretrained model under `./checkpoints/{name}_pretrained/200_net_G.pth`.
 
 - Then generate the results using
 ```bash
 python test.py --dataroot datasets/monet2photo/testB --name {name}_pretrained --model test
 ```
-The option `--model test` is used for generating results of GANILLA only for one side. `python test.py --model cycle_gan` will require loading and generating results in both directions, which is sometimes unnecessary. The results will be saved at `./results/`. Use `--results_dir {directory_path_to_save_result}` to specify the results directory.
-
-- If you would like to apply a pre-trained model to a collection of input images (rather than image pairs), please use `--dataset_mode single` and `--model test` options. Here is a script to apply a model to Facade label maps (stored in the directory `facades/testB`).
-
-``` bash
-#!./scripts/test_single.sh
-python test.py --dataroot ./datasets/monet2photo/testB/ --name {your_trained_model_name} --model test
-```
-You might want to specify `--netG` to match the generator architecture of the trained model.
-
+The option `--model test` is used for generating results of WAIT only for one side. 
+`python test.py --model cycle_gan` will require loading and generating results in both directions, which is sometimes unnecessary. 
+The results will be saved at `./results/`. Use `--results_dir {directory_path_to_save_result}` to specify the results directory.
 
 ## [Training/Test Tips](docs/tips.md)
 Best practice for training and testing your models.
@@ -126,14 +155,8 @@ If you use this code for your research, please cite our papers.
   publisher={Elsevier}
 }
 
-@inproceedings{Hicsonmez:2017:DDN:3078971.3078982,
- author = {Hicsonmez, Samet and Samet, Nermin and Sener, Fadime and Duygulu, Pinar},
- title = {DRAW: Deep Networks for Recognizing Styles of Artists Who Illustrate Children's Books},
- booktitle = {Proceedings of the 2017 ACM on International Conference on Multimedia Retrieval},
- year = {2017}
-}
 ```
 ## Acknowledgments
-Our code is heavily inspired by [CycleGAN](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix).
+Our code is heavily inspired by [GANILLA](https://github.com/giddyyupp/ganilla).
 
 The numerical calculations reported in this work were fully performed at TUBITAK ULAKBIM, High Performance and Grid Computing Center (TRUBA resources).
