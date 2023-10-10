@@ -4,7 +4,7 @@ We provide official PyTorch implementation for:
 
 WAIT: Feature Warping for Animation to Illustration video Translation using GANs
 
-[Arxiv](update!!)
+[Arxiv](https://arxiv.org/abs/2310.04901)
 
 
 ![WAIT teaser](docs/figs/BP_seq2_teaser.gif)
@@ -70,11 +70,9 @@ python setup.py install develop
 ```
 ### WAIT Train & Test
 
-- Download a GANILLA illustrator dataset and corresponding animation movies (e.g. BP):
+- Download a GANILLA illustrator dataset and corresponding animation movies (e.g. BP). For illustration dataset please follow the steps explained in [Ganilla](https://github.com/giddyyupp/ganilla) repository. For animations, we use Peter Rabbit movie to curate BP dataset, and videos from [ZOG](https://www.youtube.com/@ZogOfficial) Youtube channel for AS dataset.  
 
-```bash
-bash ./datasets/download_wait_dataset.sh BP
-```
+
 - Train a model:
 ```
 python train.py --dataroot ./datasets/bp_dataset --name bp_wait --model cycle_gan_warp --netG resnet_9blocks \ 
@@ -83,13 +81,14 @@ python train.py --dataroot ./datasets/bp_dataset --name bp_wait --model cycle_ga
 --offset_network_block_cnt 10 --warp_layer_cnt 5
 ```
 - To view training results and loss plots, run `python -m visdom.server` and click the URL http://localhost:8097. 
-To see more intermediate results, check out `./checkpoints/maps_cyclegan/web/index.html`
+To see more intermediate results, check out `./checkpoints/bp_wait/web/index.html`
 
 - Test the model:
+With assigning correct variables to dataset, EXP_ID, and backbone;
 ```bash
 #!./scripts/test_warp_models.sh ./datasets/"$dataset" $EXP_ID $backbone $dataset --norm_warp "batch" --rec_bug_fix --use_warp_speed_ups --final_conv --merge_method "concat"
 ```
-or
+or 
 ```
 python test.py --dataroot ./datasets/bp_dataset --name bp_wait --model cycle_gan_warp --netG resnet_9blocks \ 
 --centerCropSize 800 --resize_or_crop center_crop --no_flip --phase test --epoch 200 --time_gap 0 --norm_warp "batch" \
@@ -124,35 +123,28 @@ cd scripts/
 You can find more scripts at `scripts` directory.
 
 ### Apply a pre-trained model (WAIT)
-- You can download pretrained models using following [link](AAA)
+- TODO!! You can download pretrained models using following [link](AAA)
 
 Put a pretrained model under `./checkpoints/{name}_pretrained/200_net_G.pth`.
 
 - Then generate the results using
 ```bash
-python test.py --dataroot datasets/monet2photo/testB --name {name}_pretrained --model test
+python test.py --dataroot datasets/bp_wait/testB --name {name}_pretrained --model test
 ```
 The option `--model test` is used for generating results of WAIT only for one side. 
 `python test.py --model cycle_gan` will require loading and generating results in both directions, which is sometimes unnecessary. 
 The results will be saved at `./results/`. Use `--results_dir {directory_path_to_save_result}` to specify the results directory.
 
-## [Training/Test Tips](docs/tips.md)
-Best practice for training and testing your models.
-
-## [Frequently Asked Questions](docs/qa.md)
-Before you post a new question, please first look at the above Q & A and existing GitHub issues.
-
-
 ## Citation
 If you use this code for your research, please cite our papers.
 ```
-@article{hicsonmez2020ganilla,
-  title={GANILLA: Generative adversarial networks for image to illustration translation},
-  author={Hicsonmez, Samet and Samet, Nermin and Akbas, Emre and Duygulu, Pinar},
-  journal={Image and Vision Computing},
-  pages={103886},
-  year={2020},
-  publisher={Elsevier}
+@misc{hicsonmez2023wait,
+      title={WAIT: Feature Warping for Animation to Illustration video Translation using GANs}, 
+      author={Samet Hicsonmez and Nermin Samet and Fidan Samet and Oguz Bakir and Emre Akbas and Pinar Duygulu},
+      year={2023},
+      eprint={2310.04901},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
 }
 
 ```
