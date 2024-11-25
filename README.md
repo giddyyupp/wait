@@ -77,8 +77,8 @@ python setup.py install develop
 ```
 python train.py --dataroot ./datasets/bp_dataset --name bp_wait --model cycle_gan_warp --netG resnet_9blocks \ 
 --centerCropSize 256 --resize_or_crop resize_and_centercrop --batch_size 8 --lr 0.0008 --niter_decay 200 --verbose \ 
---norm_warp "batch" --use_warp_speed_ups --rec_bug_fix --final_conv --merge_method "concat" --time_gap 5 \ 
---offset_network_block_cnt 10 --warp_layer_cnt 5
+--norm_warp "batch" --use_warp_speed_ups --rec_bug_fix --final_conv --merge_method "concat" --time_gap 2 \ 
+--offset_network_block_cnt 8 --warp_layer_cnt 5
 ```
 - To view training results and loss plots, run `python -m visdom.server` and click the URL http://localhost:8097. 
 To see more intermediate results, check out `./checkpoints/bp_wait/web/index.html`
@@ -91,8 +91,8 @@ With assigning correct variables to dataset, EXP_ID, and backbone;
 or 
 ```
 python test.py --dataroot ./datasets/bp_dataset --name bp_wait --model cycle_gan_warp --netG resnet_9blocks \ 
---centerCropSize 800 --resize_or_crop center_crop --no_flip --phase test --epoch 200 --time_gap 0 --norm_warp "batch" \
---rec_bug_fix --final_conv --merge_method "concat"
+--centerCropSize 256 --resize_or_crop center_crop --no_flip --phase test --epoch 200 --time_gap 0 --norm_warp "batch" \
+--rec_bug_fix --final_conv --merge_method "concat" --offset_network_block_cnt 8 --warp_layer_cnt 5
 ```
 
 The test results will be saved to a html file here: `./results/bp_wait/latest_test/index.html`.
