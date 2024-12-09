@@ -111,7 +111,29 @@ preprocess the dataset described as [here](https://github.com/phoenix104104/fast
 
 We put 2 helper scripts in the `metrics/FWE` folder, just copy paste them to the main directory of the above repo.
 
-Now you can run `calculate_FWE.sh`. 
+More specifically, lets assume you would like to calculate a model trained on `AS` dataset, and you run the inference and want to calculate the FWE. 
+First, rename your generated images so that they start from 000000.png and end at 001234.png using:
+```
+python rename_video_frames.py
+```
+here you need to fix `data_dir` and `target_dir` parameters based on your needs. 
+Second, if your `testA` images are not in the same order as mentioned above, again fix the input parameters and run `python rename_video_frames.py` again on the test images.
+
+Now we should put the real and generated images to correct folders to proceed with flow occlusion and FWE calculations.
+For generated images, create a folder in the path `./data/test/wait/fwe/AS/testA` and put all the renamed generated images there.
+For real images, create a folder in the path `./data/test/input/AS/testA` and put all the renamed real images there.
+
+Now you have real and generated images at the same order and renamed properly and put in the correct folders. Lets calculate flow occlusions. The script to use is `compute_flow_occlusion.py`.
+If you inspect it, there is one required parameter which is `-dataset`. For our case it is `AS`. Create a .txt file in the path `./lists/AS_test.txt` and just put testA in the first line and save. Run below to generate flow occlusions.
+```
+python compute_flow_occlusion.py -dataset "AS" 
+```
+
+Finally, run below command to compute the FWE score.
+
+```
+python evaluate_WarpError.py -method "wait" -task fwe -dataset AS
+```
 
 - We also provide a single script to calculate all metrics in single run.
 
