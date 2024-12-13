@@ -3,8 +3,9 @@ import torch.nn as nn
 from torch.nn import init
 import functools
 from torch.optim import lr_scheduler
-
+from torchvision.ops import DeformConv2d
 import torch.nn.functional as F
+
 from models.deform_conv.modules.deform_conv import DeformConv
 from models.hough_module import Hough
 
@@ -276,27 +277,17 @@ class ResnetGeneratorWarp(nn.Module):
                                                                 warp_out, self.offset_network_block_cnt).cuda()
 
         # Offsets
-        self.offset_deconv_resolutions = [3, 6, 12, 18, 24]
-        self.offset_layers = []
-        self.deform_layers = []
+        self.offset_deconv_resolutions = [3, 6, 12, 18, 24, 30, 36]
+        self.offset_layers = nn.ModuleList()
+        self.deform_layers = nn.ModuleList()
         for i in range(self.warp_layer_cnt):
             self.offset_layers.append(self._single_conv(inner_ch, k, k,
                                                         self.offset_deconv_resolutions[i], warp_out).cuda())
-            # self.offsets1 = self._single_conv(inner_ch, k, k, 3, warp_out).cuda()
-            # self.offsets2 = self._single_conv(inner_ch, k, k, 6, warp_out).cuda()
-            # self.offsets3 = self._single_conv(inner_ch, k, k, 12, warp_out).cuda()
-            # self.offsets4 = self._single_conv(inner_ch, k, k, 18, warp_out).cuda()
-            # self.offsets5 = self._single_conv(inner_ch, k, k, 24, warp_out).cuda()
 
         # Deformable Conv
         for i in range(self.warp_layer_cnt):
             self.deform_layers.append(self._deform_conv(warp_out, k, k,
                                                         self.offset_deconv_resolutions[i], warp_out).cuda())
-        # self.deform_conv1 = self._deform_conv(warp_out, k, k, 3, warp_out).cuda()
-        # self.deform_conv2 = self._deform_conv(warp_out, k, k, 6, warp_out).cuda()
-        # self.deform_conv3 = self._deform_conv(warp_out, k, k, 12, warp_out).cuda()
-        # self.deform_conv4 = self._deform_conv(warp_out, k, k, 18, warp_out).cuda()
-        # self.deform_conv5 = self._deform_conv(warp_out, k, k, 24, warp_out).cuda()
 
         model_final = [nn.ReflectionPad2d(3)]
         model_final += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
@@ -384,6 +375,16 @@ class ResnetGeneratorWarp(nn.Module):
             deformable_groups=dg)
         return conv_offset2d
 
+    def _deform_conv_pytorch(self, nc, kh, kw, dd, dg):
+        conv_offset2d = DeformConv2d(
+            nc,
+            nc, (kh, kw),
+            stride=1,
+            padding=int(kh / 2) * dd,
+            dilation=dd,
+            groups=dg)
+        return conv_offset2d
+
     def forward(self, inputs, ordered=True):
         if ordered:
             batch_size = inputs.size(0)
@@ -433,21 +434,6 @@ class ResnetGeneratorWarp(nn.Module):
             warped_x = self.deform_layers[i](sup_x_cuda.contiguous(), off.contiguous())
             warped_outs.append(warped_x)
 
-        # off1 = self.offsets1(off_feats_cuda)
-        # warped_x1 = self.deform_conv1(sup_x_cuda.contiguous(), off1.contiguous())
-        #
-        # off2 = self.offsets2(off_feats_cuda)
-        # warped_x2 = self.deform_conv2(sup_x_cuda.contiguous(), off2.contiguous())
-        #
-        # off3 = self.offsets3(off_feats_cuda)
-        # warped_x3 = self.deform_conv3(sup_x_cuda.contiguous(), off3.contiguous())
-        #
-        # off4 = self.offsets4(off_feats_cuda)
-        # warped_x4 = self.deform_conv4(sup_x_cuda.contiguous(), off4.contiguous())
-        #
-        # off5 = self.offsets5(off_feats_cuda)
-        # warped_x5 = self.deform_conv5(sup_x_cuda.contiguous(), off5.contiguous())
-
         if self.merge_method == 'sum':
             x = torch.mean(torch.stack(warped_outs), dim=0)
         elif self.merge_method == 'concat':
@@ -462,20 +448,6 @@ class ResnetGeneratorWarp(nn.Module):
 
             off1 = self.offsets1(off_feats_cuda)
             warped_x1 = self.deform_conv1(sup_x_cuda, off1)
-
-            # off2 = self.offsets2(off_feats_cuda)
-            # warped_x2 = self.deform_conv2(sup_x_cuda, off2)
-            #
-            # off3 = self.offsets3(off_feats_cuda)
-            # warped_x3 = self.deform_conv3(sup_x_cuda, off3)
-            #
-            # off4 = self.offsets4(off_feats_cuda)
-            # warped_x4 = self.deform_conv4(sup_x_cuda, off4)
-            #
-            # off5 = self.offsets5(off_feats_cuda)
-            # warped_x5 = self.deform_conv5(sup_x_cuda, off5)
-
-            # x = 0.25 * (warped_x1 + warped_x2 + warped_x3 + warped_x4)
             x = warped_x1
 
         ###############

@@ -1,4 +1,6 @@
 import time
+import sys
+sys.path.insert(0, './')
 from options.train_options import TrainOptions
 from data import CreateDataLoader
 from models import create_model
