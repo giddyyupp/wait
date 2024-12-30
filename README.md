@@ -145,16 +145,18 @@ cd scripts/
 You can find more scripts at `scripts` directory.
 
 ### Apply a pre-trained model (WAIT)
-- TODO!! You can download pretrained models using following [link](AAA)
+- You can download our pretrained models (AS, BP in the paper, and IRVI traffic from [https://github.com/BIT-DA/I2V-GAN](I2V-GAN)) using following [https://drive.google.com/drive/folders/1-SxVeN_MUUeRy6M6cg1XcMOoJGkGujls?usp=sharing](GDrive).
 
-Put a pretrained model under `./checkpoints/{name}_pretrained/200_net_G.pth`.
+Put the pretrained models under `./checkpoints/`.
 
-- Then generate the results using
+- Then generate the results for BP dataset using:
+
 ```bash
-python test.py --dataroot datasets/bp_wait/testB --name {name}_pretrained --model test
+python test.py --dataroot ./datasets/bp_dataset --name bp_wait --model cycle_gan_warp --netG resnet_9blocks \ 
+--centerCropSize 256 --resize_or_crop center_crop --no_flip --phase test --epoch 200 --time_gap 0 --norm_warp "batch" \
+--rec_bug_fix --final_conv --merge_method "concat" --offset_network_block_cnt 8 --warp_layer_cnt 5
 ```
-The option `--model test` is used for generating results of WAIT only for one side. 
-`python test.py --model cycle_gan` will require loading and generating results in both directions, which is sometimes unnecessary. 
+
 The results will be saved at `./results/`. Use `--results_dir {directory_path_to_save_result}` to specify the results directory.
 
 ## Citation
