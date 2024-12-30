@@ -145,7 +145,7 @@ cd scripts/
 You can find more scripts at `scripts` directory.
 
 ### Apply a pre-trained model (WAIT)
-- You can download our pretrained models (AS, BP in the paper, and IRVI traffic from [https://github.com/BIT-DA/I2V-GAN](I2V-GAN)) using following [https://drive.google.com/drive/folders/1-SxVeN_MUUeRy6M6cg1XcMOoJGkGujls?usp=sharing](GDrive).
+- You can download our pretrained models (AS, BP in the paper, and IRVI traffic from [I2V-GAN](https://github.com/BIT-DA/I2V-GAN)) using following [GDrive](https://drive.google.com/drive/folders/1-SxVeN_MUUeRy6M6cg1XcMOoJGkGujls?usp=sharing).
 
 Put the pretrained models under `./checkpoints/`.
 
