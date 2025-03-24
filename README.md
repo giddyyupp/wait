@@ -159,6 +159,17 @@ python test.py --dataroot ./datasets/bp_dataset --name bp_wait --model cycle_gan
 
 The results will be saved at `./results/`. Use `--results_dir {directory_path_to_save_result}` to specify the results directory.
 
+### Additional Task
+
+We also experimented with a dataset from another domain, infrared [Traffic](https://github.com/BIT-DA/I2V-GAN) dataset presented in the I2V-GAN. Below table depicts a comparison between WAIT and the method presented in I2V-GAN. 
+These results show the effectiveness of our method on another domain, Infrared to RGB video translation.
+
+| Method  | FID   | KID    |  FWE      |  MSE     |
+| :---:   | :---: | :---:  |  :---:    | :---:    |
+| I2V-GAN | 43.59 | 0.0212 |  0.002057 |  8144.97 |
+| WAIT    | 43.68 | 0.0227 |  0.002438 |  8336.48 |
+
+
 ## Citation
 If you use this code for your research, please cite our papers.
 ```
