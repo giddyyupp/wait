@@ -4,7 +4,12 @@ We provide official PyTorch implementation for:
 
 WAIT: Feature Warping for Animation to Illustration video Translation using GANs
 
+[Paper](https://www.sciencedirect.com/science/article/pii/S0925231225007805)
 [Arxiv](https://arxiv.org/abs/2310.04901)
+
+## Updates
+
+- (March, 2025) Our paper is accepted to Neurocomputing!
 
 
 ![WAIT teaser](docs/figs/BP_seq2_teaser.gif)
