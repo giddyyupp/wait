@@ -178,17 +178,18 @@ These results show the effectiveness of our method on another domain, Infrared t
 
 ## Citation
 If you use this code for your research, please cite our papers.
-```
-@misc{hicsonmez2023wait,
-      title={WAIT: Feature Warping for Animation to Illustration video Translation using GANs}, 
-      author={Samet Hicsonmez and Nermin Samet and Fidan Samet and Oguz Bakir and Emre Akbas and Pinar Duygulu},
-      year={2023},
-      eprint={2310.04901},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV}
-}
 
 ```
+@article{HICSONMEZ_WAIT,
+      title = {WAIT: Feature warping for animation to illustration video translation using GANs},
+      journal = {Neurocomputing},
+      volume = {637},
+      year = {2025},
+      issn = {0925-2312},
+      author = {Samet Hicsonmez and Nermin Samet and Fidan Samet and Oguz Bakir and Emre Akbas and Pinar Duygulu}
+}
+```
+
 ## Acknowledgments
 Our code is heavily inspired by [GANILLA](https://github.com/giddyyupp/ganilla).
 
