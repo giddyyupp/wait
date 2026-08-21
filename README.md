@@ -5,7 +5,7 @@ We provide official PyTorch implementation for:
 WAIT: Feature Warping for Animation to Illustration video Translation using GANs
 
 [![Paper](https://img.shields.io/badge/Elsevier-FF6C00?style=for-the-badge&logo=elsevier&logoColor=white)](https://www.sciencedirect.com/science/article/pii/S0925231225007805)
-[![arXiv](https://img.shields.io/badge/arXiv-1234.56789-b31b1b.svg)](https://arxiv.org/abs/2310.04901)
+[![arXiv](https://img.shields.io/badge/arXiv-2310.04901-b31b1b.svg)](https://arxiv.org/abs/2310.04901)
 [![Model](https://img.shields.io/badge/Hugging%20Face-Model-yellow?logo=huggingface)](https://huggingface.co/samethi/wait)
 
 
